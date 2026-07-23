@@ -439,6 +439,9 @@ export default function MusculoskeletalDisease() {
   const [showLoadPrev, setShowLoadPrev]   = useState(false);
   const [riskManual, setRiskManual]       = useState(false);
   const [showPostureDialog, setShowPostureDialog] = useState(false);
+  // 4단계 인라인 플로우 (QR과 동일)
+  const [inlineSurveyMode, setInlineSurveyMode] = useState(false);
+  const [showDoneInline, setShowDoneInline]       = useState(false);
 
   // ── Stage 2: 데이터 관리 상태 ─────────────────────────────────────────
   const [historyId, setHistoryId]         = useState<number | null>(null);
@@ -575,13 +578,25 @@ export default function MusculoskeletalDisease() {
       queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments"] });
       queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments/pending-symptom-count"] });
       resetSurveyForm();
-      if (variables.hasPain === "예") {
-        setSurveyAssessmentId(null);
-        queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments/pending-interview-requests"] });
-        setInterviewNotifDismissed(false);
-        toast({ title: "면담요청이 접수되었습니다. 부서장에게 알림이 전송됩니다." });
+      if (inlineSurveyMode) {
+        // 인라인 모드: 4단계(완료)로 전환
+        setInlineSurveyMode(false);
+        setShowDoneInline(true);
+        if (variables.hasPain === "예") {
+          queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments/pending-interview-requests"] });
+          setInterviewNotifDismissed(false);
+          toast({ title: "면담요청이 접수되었습니다. 부서장에게 알림이 전송됩니다." });
+        }
       } else {
-        toast({ title: "증상조사표가 등록되었습니다." });
+        // 기존 독립 다이얼로그 동작
+        if (variables.hasPain === "예") {
+          setSurveyAssessmentId(null);
+          queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments/pending-interview-requests"] });
+          setInterviewNotifDismissed(false);
+          toast({ title: "면담요청이 접수되었습니다. 부서장에게 알림이 전송됩니다." });
+        } else {
+          toast({ title: "증상조사표가 등록되었습니다." });
+        }
       }
     },
     onError: () => toast({ variant: "destructive", title: "등록에 실패했습니다." }),
@@ -938,14 +953,18 @@ export default function MusculoskeletalDisease() {
       } as unknown as Record<string, unknown>).then(r => r.json()),
     onSuccess: async (response: any, variables: FormState) => {
       clearDraft();
-      resetForm();
       toast({ title: "근골격계 유해요인조사가 등록되었습니다." });
-      // 부담작업 항목이 있으면 목록 갱신 후 바로 증상조사표 입력으로 이동
       if (variables.burdenWorkChecklist.length > 0 && response?.id) {
+        // 부담작업 있음 → 같은 다이얼로그에서 3단계(증상조사)로 전환
         await queryClient.refetchQueries({ queryKey: ["/api/musculoskeletal-assessments"] });
-            setSurveyAssessmentId(response.id);
+        setSurveyAssessmentId(response.id);
+        setSurveyForm(f => ({ ...f, workerName: variables.assessor || f.workerName }));
+        setShowChecklist(false);
+        setInlineSurveyMode(true);
       } else {
+        // 부담작업 없음 → 4단계(완료) 화면
         queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments"] });
+        setShowDoneInline(true);
       }
     },
     onError: () => toast({ variant: "destructive", title: "등록 실패" }),
@@ -1070,6 +1089,9 @@ export default function MusculoskeletalDisease() {
     setShowForm(false);
     setRiskManual(false);
     setShowChecklist(false);
+    setInlineSurveyMode(false);
+    setShowDoneInline(false);
+    resetSurveyForm();
   };
 
   const handleSubmit = () => {
@@ -1824,10 +1846,18 @@ export default function MusculoskeletalDisease() {
               </div>
               <div>
                 <DialogTitle className="text-xl font-bold whitespace-pre-line leading-snug text-center" data-testid="dialog-title">
-                  {editingId ? "유해요인조사 수정" : (!showChecklist ? "근골격계 유해요인조사\n기본정보 입력" : "근골격계 부담작업 조사")}
+                  {editingId ? "유해요인조사 수정"
+                    : showDoneInline ? "등록 완료"
+                    : inlineSurveyMode ? "근골격계질환 증상조사"
+                    : !showChecklist ? "근골격계 유해요인조사\n기본정보 입력"
+                    : "근골격계 부담작업 조사"}
                 </DialogTitle>
                 <p className="text-sm text-muted-foreground mt-1.5">
-                  {editingId ? "조사 내용을 수정합니다" : (!showChecklist ? "산업안전보건법에 따른 근골격계 유해요인조사" : "해당되는 부담작업을 모두 선택하세요")}
+                  {editingId ? "조사 내용을 수정합니다"
+                    : showDoneInline ? "모든 단계가 완료되었습니다"
+                    : inlineSurveyMode ? "신체 부위별 통증 및 불편 증상을 기입해 주세요"
+                    : !showChecklist ? "산업안전보건법에 따른 근골격계 유해요인조사"
+                    : "해당되는 부담작업을 모두 선택하세요"}
                 </p>
               </div>
             </div>
@@ -1841,7 +1871,7 @@ export default function MusculoskeletalDisease() {
                     { label: "증상조사", Icon: Activity },
                     { label: "등록완료", Icon: CheckCircle2 },
                   ] as { label: string; Icon: React.ComponentType<{ className?: string }> }[]).map((s, i) => {
-                    const currentIdx = !showChecklist ? 0 : 1;
+                    const currentIdx = showDoneInline ? 3 : inlineSurveyMode ? 2 : !showChecklist ? 0 : 1;
                     const isDone = i < currentIdx;
                     const isActive = i === currentIdx;
                     const Icon = s.Icon;
@@ -1873,6 +1903,253 @@ export default function MusculoskeletalDisease() {
             )}
           </div>
           <div className="px-6 pb-6 pt-5 space-y-4">
+
+          {/* ─── 완료 화면 (4단계) ────────────────────────────────── */}
+          {showDoneInline && (
+            <div className="flex flex-col items-center gap-4 py-8 text-center">
+              <div className="w-16 h-16 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                <CheckCircle2 className="w-9 h-9 text-green-600 dark:text-green-400" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-foreground">등록이 완료되었습니다</h3>
+                <p className="text-sm text-muted-foreground mt-1.5">
+                  {form.department && <span className="font-medium">{form.department}</span>} {form.task && <span>— {form.task}</span>} 조사가 저장되었습니다.
+                </p>
+              </div>
+              {surveyForm.hasPain === "예" && (
+                <div className="w-full rounded-xl border border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-900/20 px-4 py-3 flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-orange-600 dark:text-orange-400 shrink-0 mt-0.5" />
+                  <div className="text-left">
+                    <p className="text-sm font-semibold text-orange-800 dark:text-orange-300">면담요청이 접수되었습니다</p>
+                    <p className="text-xs text-orange-700 dark:text-orange-400 mt-0.5">증상이 확인되었습니다. 부서장/담당자에게 면담 요청이 전달됩니다.</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ─── 인라인 증상조사 (3단계) ─────────────────────────── */}
+          {inlineSurveyMode && !showDoneInline && (
+            <div className="space-y-4">
+              {/* 작업자 성명 */}
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">성명 <span className="text-xs text-muted-foreground font-normal">(선택)</span></Label>
+                <Input
+                  value={surveyForm.workerName || ""}
+                  onChange={e => setSurveyForm(f => ({ ...f, workerName: e.target.value }))}
+                  placeholder="홍길동"
+                  className="h-9"
+                  data-testid="input-inline-worker-name"
+                />
+              </div>
+
+              {/* I. 일반 문항 */}
+              <div className="bg-card rounded-2xl border shadow-sm p-4 space-y-4">
+                <h2 className="font-semibold text-base flex items-center gap-2 text-purple-700 dark:text-purple-400">
+                  <HeartPulse className="w-4 h-4" /> I. 일반 문항
+                </h2>
+
+                {/* Q1 */}
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold">1. 규칙적인 여가·취미 활동 <span className="text-xs font-normal text-muted-foreground">(30분 이상, 주 2~3회↑, 중복 가능)</span></p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {LEISURE_OPTS.map(opt => (
+                      <button key={opt} type="button"
+                        onClick={() => setSurveyForm(f => { const cur: string[] = f.q1Leisure || []; return { ...f, q1Leisure: cur.includes(opt) ? cur.filter((x: string) => x !== opt) : [...cur, opt] }; })}
+                        className={`py-2 px-3 rounded-lg border text-xs font-medium text-left transition-all ${(surveyForm.q1Leisure || []).includes(opt) ? "border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300" : "border-border hover:border-purple-300"}`}
+                      >{opt}</button>
+                    ))}
+                  </div>
+                </div>
+                <div className="border-t" />
+                {/* Q2 */}
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold">2. 하루 평균 가사노동 시간</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {HOUSEWORK_OPTS.map(opt => (
+                      <button key={opt} type="button"
+                        onClick={() => setSurveyForm(f => ({ ...f, q2Housework: opt }))}
+                        className={`py-2 px-3 rounded-lg border text-xs font-medium text-left transition-all ${surveyForm.q2Housework === opt ? "border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300" : "border-border hover:border-purple-300"}`}
+                      >{opt}</button>
+                    ))}
+                  </div>
+                </div>
+                <div className="border-t" />
+                {/* Q3 */}
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold">3. 의사 진단을 받은 질병이 있습니까?</p>
+                  <div className="flex gap-2">
+                    {["아니오","예"].map(v => (
+                      <button key={v} type="button"
+                        onClick={() => setSurveyForm(f => ({ ...f, q3Medical: v, q3Conditions: [], q3Status: "" }))}
+                        className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-all ${surveyForm.q3Medical === v ? "border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300" : "border-border hover:border-purple-300"}`}
+                      >{v}</button>
+                    ))}
+                  </div>
+                  {surveyForm.q3Medical === "예" && (
+                    <div className="pl-3 border-l-2 border-purple-300 space-y-2 mt-1">
+                      <div className="grid grid-cols-2 gap-2">
+                        {MEDICAL_CONDITIONS_HEALTH.map(opt => {
+                          const sel = (surveyForm.q3Conditions || []).includes(opt);
+                          return (
+                            <button key={opt} type="button"
+                              onClick={() => setSurveyForm(f => { const cur: string[] = f.q3Conditions || []; return { ...f, q3Conditions: sel ? cur.filter((x: string) => x !== opt) : [...cur, opt] }; })}
+                              className={`py-1.5 px-2 rounded-lg border text-xs font-medium text-left transition-all ${sel ? "border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300" : "border-border hover:border-purple-300"}`}
+                            >{opt}</button>
+                          );
+                        })}
+                      </div>
+                      <div className="flex gap-2 flex-wrap">
+                        {["치료 중","완치","관찰 중"].map(v => (
+                          <button key={v} type="button"
+                            onClick={() => setSurveyForm(f => ({ ...f, q3Status: v }))}
+                            className={`py-1.5 px-3 rounded-lg border text-xs font-medium transition-all ${surveyForm.q3Status === v ? "border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300" : "border-border hover:border-purple-300"}`}
+                          >{v}</button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="border-t" />
+                {/* Q4 */}
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold">4. 현재 하는 작업이 얼마나 힘드십니까?</p>
+                  <div className="flex gap-2 flex-wrap">
+                    {WORKLOAD_OPTS.map(opt => (
+                      <button key={opt} type="button"
+                        onClick={() => setSurveyForm(f => ({ ...f, q4Workload: opt }))}
+                        className={`py-1.5 px-3 rounded-lg border text-xs font-medium transition-all ${surveyForm.q4Workload === opt ? "border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300" : "border-border hover:border-purple-300"}`}
+                      >{opt}</button>
+                    ))}
+                  </div>
+                </div>
+                <div className="border-t" />
+                {/* Q5 */}
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold">5. 현재 하는 작업 기간</p>
+                  <div className="flex gap-2 flex-wrap">
+                    {WORK_DURATION_OPTS.map(opt => (
+                      <button key={opt} type="button"
+                        onClick={() => setSurveyForm(f => ({ ...f, q5WorkDuration: opt }))}
+                        className={`py-1.5 px-3 rounded-lg border text-xs font-medium transition-all ${surveyForm.q5WorkDuration === opt ? "border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300" : "border-border hover:border-purple-300"}`}
+                      >{opt}</button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* II. 신체 부위별 증상 */}
+              <div className="bg-card rounded-2xl border shadow-sm p-4 space-y-4">
+                <h2 className="font-semibold text-base flex items-center gap-2 text-purple-700 dark:text-purple-400">
+                  <Activity className="w-4 h-4" /> II. 신체 부위별 증상
+                </h2>
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold">6. 지난 1년 동안 목, 어깨, 팔/팔꿈치, 손/손목/손가락, 허리, 다리/발 중 어느 한 부위에서라도 불편함을 느끼신 적이 있습니까?</p>
+                  <div className="flex gap-2">
+                    {["아니오","예"].map(v => (
+                      <button key={v} type="button"
+                        onClick={() => setSurveyForm(f => ({ ...f, hasPain: v }))}
+                        className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-all ${surveyForm.hasPain === v ? (v === "예" ? "border-orange-500 bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300" : "border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300") : "border-border hover:border-purple-300"}`}
+                      >{v}</button>
+                    ))}
+                  </div>
+                </div>
+                {surveyForm.hasPain === "예" && (
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap gap-2">
+                      {BODY_PARTS.map(bp => {
+                        const sel = (surveyForm.bodyParts || []).includes(bp.key);
+                        return (
+                          <button key={bp.key} type="button"
+                            onClick={() => toggleBodyPart(bp.key)}
+                            className={`py-1.5 px-3 rounded-lg border text-xs font-medium transition-all flex items-center gap-1.5 ${sel ? "border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300" : "border-border hover:border-purple-300"}`}
+                          >
+                            <span className="w-3 h-3 rounded-sm border flex-shrink-0 flex items-center justify-center" style={{ borderColor: sel ? undefined : "#9ca3af", background: sel ? "#9333ea" : undefined }}>
+                              {sel && <span className="text-white text-[8px]">✓</span>}
+                            </span>
+                            {bp.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {(surveyForm.bodyParts || []).map(bpKey => {
+                      const bp = BODY_PARTS.find(b => b.key === bpKey);
+                      if (!bp) return null;
+                      const data = getBpData(bp.key);
+                      const setBp = (patch: Partial<typeof data>) => setBpData(bp.key, patch);
+                      return (
+                        <div key={bp.key} className="rounded-xl border border-purple-200 dark:border-purple-800 bg-purple-50/40 dark:bg-purple-900/10 p-3 space-y-3">
+                          <p className="text-sm font-semibold text-purple-800 dark:text-purple-200">{bp.label}</p>
+                          <div className="space-y-2">
+                            <p className="text-xs font-medium">① 통증 강도</p>
+                            <div className="flex gap-1.5 flex-wrap">
+                              {PAIN_SCALES.map(s => (
+                                <button key={s.label} type="button"
+                                  onClick={() => setBp({ painScale: s.label })}
+                                  className={`py-1 px-2 rounded-lg border text-xs transition-all ${data.painScale === s.label ? `border-${s.color}-500 bg-${s.color}-50 dark:bg-${s.color}-900/30 text-${s.color}-700` : "border-border hover:border-purple-300"}`}
+                                >{s.label}</button>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <p className="text-xs font-medium">② 증상 발생 빈도</p>
+                            <div className="flex gap-1.5 flex-wrap">
+                              {PAIN_FREQ_OPTS.map(opt => (
+                                <button key={opt} type="button"
+                                  onClick={() => setBp({ frequency: opt })}
+                                  className={`py-1 px-2 rounded-lg border text-xs transition-all ${data.frequency === opt ? "border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300" : "border-border hover:border-purple-300"}`}
+                                >{opt}</button>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <p className="text-xs font-medium">③ 지속 기간</p>
+                            <div className="flex gap-1.5 flex-wrap">
+                              {PAIN_DURATION_OPTS.map(opt => (
+                                <button key={opt} type="button"
+                                  onClick={() => setBp({ duration: opt })}
+                                  className={`py-1 px-2 rounded-lg border text-xs transition-all ${data.duration === opt ? "border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300" : "border-border hover:border-purple-300"}`}
+                                >{opt}</button>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <p className="text-xs font-medium">④ 업무 관련성</p>
+                            <div className="flex gap-1.5 flex-wrap">
+                              {WORK_RELATION_OPTS.map(opt => (
+                                <button key={opt} type="button"
+                                  onClick={() => setBp({ workRelation: opt })}
+                                  className={`py-1 px-2 rounded-lg border text-xs transition-all ${data.workRelation === opt ? "border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300" : "border-border hover:border-purple-300"}`}
+                                >{opt}</button>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <p className="text-xs font-medium">⑤ 치료 여부</p>
+                            <div className="flex gap-1.5 flex-wrap">
+                              {TREATMENT_OPTS.map(t => {
+                                const treatments: string[] = data.treatments || [];
+                                const selected = treatments.includes(t);
+                                return (
+                                  <button key={t} type="button"
+                                    onClick={() => setBp({ treatments: selected ? treatments.filter(x => x !== t) : [...treatments, t] })}
+                                    className={`py-1 px-2 rounded-lg border text-xs transition-all ${selected ? "border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300" : "border-border hover:border-purple-300"}`}
+                                  >{t}</button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ─── 기본 정보 / 부담작업 (1-2단계 래핑 시작) ────────── */}
+          {!inlineSurveyMode && !showDoneInline && (<>
 
           {/* ─── 기본 정보 (먼저) ─────────────────────────────────── */}
           <div className="rounded-xl border border-purple-100 dark:border-purple-900/50 bg-purple-50/40 dark:bg-purple-900/10 p-4 space-y-4">
@@ -2178,26 +2455,52 @@ export default function MusculoskeletalDisease() {
             );
           })()}
 
+          </>)}
+          {/* END of steps 1-2 wrapper */}
+
           <DialogFooter className="gap-2 px-6 pb-6 pt-2">
-            {!editingId && (
-              <Button
-                variant="ghost" size="sm" className="mr-auto text-muted-foreground text-xs"
-                onClick={() => { clearDraft(); toast({ title: "임시저장이 삭제되었습니다." }); }}
-                disabled={!hasDraft}
-                data-testid="button-clear-draft"
-              >
-                <Trash2 className="w-3.5 h-3.5 mr-1" />임시저장 삭제
+            {/* 4단계(완료) */}
+            {showDoneInline && (
+              <Button onClick={resetForm} className="bg-purple-600 text-white" data-testid="button-done-close">
+                닫기
               </Button>
             )}
-            <Button variant="outline" onClick={resetForm} data-testid="button-cancel">취소</Button>
-            <Button
-              onClick={handleSubmit}
-              disabled={createMutation.isPending || updateMutation.isPending}
-              className="bg-purple-600 text-white"
-              data-testid="button-submit"
-            >
-              {editingId ? "수정" : "등록"}
-            </Button>
+            {/* 3단계(증상조사) */}
+            {inlineSurveyMode && !showDoneInline && (<>
+              <Button variant="outline" onClick={() => { setInlineSurveyMode(false); setShowChecklist(true); resetSurveyForm(); }} data-testid="button-survey-back">
+                이전으로
+              </Button>
+              <Button
+                onClick={handleSurveySubmit}
+                disabled={createSurveyMutation.isPending}
+                className={surveyForm.hasPain === "예" ? "bg-orange-500 hover:bg-orange-600 text-white" : "bg-purple-600 text-white"}
+                data-testid="button-survey-inline-submit"
+              >
+                {createSurveyMutation.isPending ? "저장 중..." : surveyForm.hasPain === "예" ? "면담요청" : "조사표 등록"}
+              </Button>
+            </>)}
+            {/* 1-2단계 */}
+            {!inlineSurveyMode && !showDoneInline && (<>
+              {!editingId && (
+                <Button
+                  variant="ghost" size="sm" className="mr-auto text-muted-foreground text-xs"
+                  onClick={() => { clearDraft(); toast({ title: "임시저장이 삭제되었습니다." }); }}
+                  disabled={!hasDraft}
+                  data-testid="button-clear-draft"
+                >
+                  <Trash2 className="w-3.5 h-3.5 mr-1" />임시저장 삭제
+                </Button>
+              )}
+              <Button variant="outline" onClick={resetForm} data-testid="button-cancel">취소</Button>
+              <Button
+                onClick={handleSubmit}
+                disabled={createMutation.isPending || updateMutation.isPending}
+                className="bg-purple-600 text-white"
+                data-testid="button-submit"
+              >
+                {editingId ? "수정" : "등록"}
+              </Button>
+            </>)}
           </DialogFooter>
           </div>
         </DialogContent>
@@ -2267,7 +2570,7 @@ export default function MusculoskeletalDisease() {
       )}
 
       {/* ─── 2단계 증상조사표 다이얼로그 ────────────────────────────── */}
-      <Dialog open={surveyAssessmentId !== null} onOpenChange={o => { if (!o) { setSurveyAssessmentId(null); resetSurveyForm(); } }}>
+      <Dialog open={surveyAssessmentId !== null && !inlineSurveyMode} onOpenChange={o => { if (!o) { setSurveyAssessmentId(null); resetSurveyForm(); } }}>
         <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto p-0">
           {/* ── 모바일 QR폼과 동일한 상단 헤더 ─────────────────────── */}
           <div className="bg-gradient-to-b from-purple-50 to-white dark:from-purple-950/20 dark:to-background px-6 pt-8 pb-5 border-b border-purple-100 dark:border-purple-900/30">
