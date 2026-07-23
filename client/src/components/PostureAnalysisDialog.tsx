@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -6,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Camera, ChevronRight, ChevronLeft, Loader2, CheckCircle2,
   AlertTriangle, AlertCircle, Dumbbell, RefreshCw, Upload, SwitchCamera,
+  FileDown, User,
 } from "lucide-react";
 
 // ─── SVG 인체 실루엣 ────────────────────────────────────────────────────────
@@ -194,6 +196,14 @@ interface Props {
   onClose: () => void;
 }
 
+interface CompletedPerson {
+  id: number;
+  name: string;
+  department: string;
+  age: string;
+  gender: string;
+}
+
 export default function PostureAnalysisDialog({ open, onClose }: Props) {
   const { toast } = useToast();
   const [step, setStep] = useState<"intro" | 0 | 1 | 2 | "analyzing" | "result">("intro");
@@ -205,6 +215,12 @@ export default function PostureAnalysisDialog({ open, onClose }: Props) {
   const [cameraRequested, setCameraRequested] = useState(false);
   const [facingMode, setFacingMode] = useState<"user" | "environment">("environment");
   const [captured, setCaptured] = useState(false);
+  const [workerInfo, setWorkerInfo] = useState<CompletedPerson | null>(null);
+
+  const { data: completedPersons = [] } = useQuery<CompletedPerson[]>({
+    queryKey: ["/api/musculoskeletal/completed-persons"],
+    enabled: open,
+  });
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -284,8 +300,94 @@ export default function PostureAnalysisDialog({ open, onClose }: Props) {
       setCaptured(false);
       setCameraRequested(false);
       setCameraError(false);
+      setWorkerInfo(null);
     }
   }, [open]);
+
+  const handlePdfExport = () => {
+    if (!result) return;
+    const w = window.open("", "_blank", "width=860,height=700");
+    if (!w) {
+      toast({ variant: "destructive", title: "팝업 차단됨", description: "브라우저에서 팝업을 허용한 후 다시 시도해주세요." });
+      return;
+    }
+    const today = new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" });
+    const sc = result.overallScore >= 80 ? "#16a34a" : result.overallScore >= 60 ? "#ca8a04" : "#dc2626";
+    const sl = result.overallScore >= 80 ? "양호" : result.overallScore >= 60 ? "보통" : "주의 필요";
+
+    const personHtml = workerInfo ? `
+      <div style="display:flex;gap:32px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:16px;margin-bottom:20px;">
+        <div><p style="font-size:11px;color:#6b7280;margin:0 0 4px;">성명</p><p style="font-weight:700;font-size:16px;margin:0;">${workerInfo.name}</p></div>
+        ${workerInfo.department ? `<div><p style="font-size:11px;color:#6b7280;margin:0 0 4px;">부서</p><p style="font-weight:700;font-size:16px;margin:0;">${workerInfo.department}</p></div>` : ""}
+        ${workerInfo.age ? `<div><p style="font-size:11px;color:#6b7280;margin:0 0 4px;">연령</p><p style="font-weight:700;font-size:16px;margin:0;">${workerInfo.age}</p></div>` : ""}
+        ${workerInfo.gender ? `<div><p style="font-size:11px;color:#6b7280;margin:0 0 4px;">성별</p><p style="font-weight:700;font-size:16px;margin:0;">${workerInfo.gender}</p></div>` : ""}
+      </div>` : "";
+
+    const issuesHtml = (result.issues ?? []).map(issue => {
+      const bg = issue.severity === "경고" ? "#fef2f2" : issue.severity === "주의" ? "#fffbeb" : "#f0fdf4";
+      const fg = issue.severity === "경고" ? "#991b1b" : issue.severity === "주의" ? "#92400e" : "#14532d";
+      const bd = issue.severity === "경고" ? "#fecaca" : issue.severity === "주의" ? "#fde68a" : "#bbf7d0";
+      return `<div style="background:${bg};border:1px solid ${bd};border-radius:8px;padding:12px 14px;margin-bottom:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-weight:600;font-size:13px;color:${fg};">${issue.area}</span>
+          <span style="font-size:11px;color:${fg};border:1px solid ${bd};padding:2px 8px;border-radius:4px;">${issue.severity}</span>
+        </div>
+        <p style="font-size:12px;color:${fg};opacity:0.9;margin:6px 0 0;">${issue.description}</p>
+      </div>`;
+    }).join("");
+
+    const exercisesHtml = (result.exercises ?? []).map((ex, i) => `
+      <div style="border:1px solid #e5e7eb;border-radius:10px;padding:16px;margin-bottom:12px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+          <span style="width:26px;height:26px;background:#ede9fe;color:#7c3aed;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;">${i + 1}</span>
+          <div style="flex:1;">
+            <p style="font-weight:600;margin:0;font-size:14px;">${ex.name}</p>
+            <span style="font-size:11px;color:#6b7280;border:1px solid #e5e7eb;padding:1px 6px;border-radius:4px;">${ex.targetArea}</span>
+          </div>
+          <span style="font-size:11px;color:#6b7280;background:#f3f4f6;padding:4px 10px;border-radius:12px;">${ex.frequency}</span>
+        </div>
+        <p style="font-size:13px;color:#374151;margin:0 0 0 36px;">${ex.description}</p>
+        ${ex.caution ? `<p style="font-size:12px;color:#92400e;background:#fffbeb;border-radius:4px;padding:6px 12px;margin:8px 0 0 36px;">⚠️ ${ex.caution}</p>` : ""}
+      </div>`).join("");
+
+    const lifestyleHtml = result.lifestyleAdvice ? `
+      <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:16px;margin-top:20px;">
+        <p style="font-weight:600;color:#1e40af;margin:0 0 8px;font-size:14px;">💡 일상생활 자세 개선 팁</p>
+        ${result.lifestyleAdvice.split("\n").filter(Boolean).map(l => `<p style="font-size:13px;color:#374151;margin:4px 0;">${l}</p>`).join("")}
+      </div>` : "";
+
+    w.document.write(`<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
+<title>AI 자세 분석 결과</title>
+<style>
+  body{font-family:'Malgun Gothic',sans-serif;margin:0;padding:36px;color:#111827;max-width:760px;margin:auto;}
+  @media print{.no-print{display:none!important;}}
+</style>
+</head><body>
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">
+    <div>
+      <h1 style="font-size:20px;font-weight:800;color:#7c3aed;margin:0 0 2px;">🏋️ AI 자세 분석 & 추천운동 결과</h1>
+      <p style="color:#6b7280;font-size:12px;margin:0;">분석일: ${today}</p>
+    </div>
+    <button class="no-print" onclick="window.print()" style="background:#7c3aed;color:white;border:none;padding:9px 22px;border-radius:8px;font-size:13px;cursor:pointer;font-weight:600;">📄 PDF 저장</button>
+  </div>
+  <hr style="border:none;border-top:1px solid #e5e7eb;margin:16px 0 20px;">
+  ${personHtml}
+  <div style="background:linear-gradient(135deg,#faf5ff,#eff6ff);border:1px solid #ddd6fe;border-radius:12px;padding:24px;text-align:center;margin-bottom:20px;">
+    <p style="color:#6b7280;font-size:13px;margin:0 0 6px;">자세 평가 점수</p>
+    <p style="font-size:64px;font-weight:900;color:${sc};margin:0 0 8px;">${result.overallScore}</p>
+    <span style="background:${sc};color:white;padding:5px 18px;border-radius:999px;font-size:14px;font-weight:600;">${sl}</span>
+    <p style="font-size:13px;color:#4b5563;margin:16px 0 0;text-align:left;line-height:1.6;">${result.summary}</p>
+  </div>
+  ${(result.issues ?? []).length > 0 ? `<h3 style="font-size:15px;font-weight:700;margin:0 0 10px;">🔍 자세 분석 결과</h3>${issuesHtml}` : ""}
+  <h3 style="font-size:15px;font-weight:700;margin:20px 0 10px;">💪 맞춤 추천 운동</h3>
+  ${exercisesHtml}
+  ${lifestyleHtml}
+  <p style="font-size:11px;color:#9ca3af;margin-top:28px;border-top:1px solid #e5e7eb;padding-top:12px;">
+    * AI 분석 결과는 참고용이며, 정확한 진단은 전문의 상담을 권장합니다.
+  </p>
+</body></html>`);
+    w.document.close();
+  };
 
   const capturePhoto = () => {
     if (!videoRef.current || !canvasRef.current || !currentKey) return;
@@ -392,6 +494,47 @@ export default function PostureAnalysisDialog({ open, onClose }: Props) {
               <p className="text-sm text-muted-foreground">
                 아래 3가지 자세로 사진을 촬영하면 GPT-4o AI가 자세를 분석하고 맞춤 운동을 추천해드립니다.
               </p>
+            </div>
+
+            {/* 대상자 선택 (증상조사+면담 완료자) */}
+            <div className="border rounded-xl p-4 space-y-2.5">
+              <div className="flex items-center gap-2">
+                <User className="w-4 h-4 text-purple-600" />
+                <p className="font-medium text-sm">대상자 선택 <span className="text-xs text-muted-foreground font-normal">(선택사항 — PDF에 인적사항 자동 포함)</span></p>
+              </div>
+              {completedPersons.length === 0 ? (
+                <p className="text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
+                  증상조사 및 면담이 완료된 근로자가 없습니다. 선택 없이 분석만 진행할 수 있습니다.
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {completedPersons.map(p => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => setWorkerInfo(workerInfo?.id === p.id ? null : p)}
+                      className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-full border transition-all ${
+                        workerInfo?.id === p.id
+                          ? "bg-purple-600 text-white border-purple-600"
+                          : "bg-white dark:bg-background border-border text-foreground hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20"
+                      }`}
+                      data-testid={`button-select-person-${p.id}`}
+                    >
+                      <User className="w-3 h-3" />
+                      {p.name}
+                      {p.department && <span className="opacity-70">({p.department})</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {workerInfo && (
+                <div className="flex gap-4 bg-purple-50 dark:bg-purple-950/30 rounded-lg px-3 py-2 text-sm">
+                  <span><span className="text-muted-foreground text-xs">성명</span> <strong>{workerInfo.name}</strong></span>
+                  {workerInfo.department && <span><span className="text-muted-foreground text-xs">부서</span> <strong>{workerInfo.department}</strong></span>}
+                  {workerInfo.age && <span><span className="text-muted-foreground text-xs">연령</span> <strong>{workerInfo.age}</strong></span>}
+                  {workerInfo.gender && <span><span className="text-muted-foreground text-xs">성별</span> <strong>{workerInfo.gender}</strong></span>}
+                </div>
+              )}
             </div>
 
             {/* 자세 카드 3개 — SVG 일러스트 강조 */}
@@ -682,6 +825,34 @@ export default function PostureAnalysisDialog({ open, onClose }: Props) {
         {/* ── 결과 ──────────────────────────────────────────────────────── */}
         {step === "result" && result && (
           <div className="space-y-5 py-2">
+            {/* 인적사항 카드 (대상자 선택된 경우) */}
+            {workerInfo && (
+              <div className="border rounded-xl p-4 flex flex-wrap gap-x-6 gap-y-2 bg-muted/30">
+                <div>
+                  <p className="text-[10px] text-muted-foreground">성명</p>
+                  <p className="font-semibold text-sm">{workerInfo.name}</p>
+                </div>
+                {workerInfo.department && (
+                  <div>
+                    <p className="text-[10px] text-muted-foreground">부서</p>
+                    <p className="font-semibold text-sm">{workerInfo.department}</p>
+                  </div>
+                )}
+                {workerInfo.age && (
+                  <div>
+                    <p className="text-[10px] text-muted-foreground">연령</p>
+                    <p className="font-semibold text-sm">{workerInfo.age}</p>
+                  </div>
+                )}
+                {workerInfo.gender && (
+                  <div>
+                    <p className="text-[10px] text-muted-foreground">성별</p>
+                    <p className="font-semibold text-sm">{workerInfo.gender}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-950/30 dark:to-blue-950/30 border border-purple-200 dark:border-purple-800 rounded-xl p-5 text-center">
               <p className="text-sm text-muted-foreground mb-1">자세 평가 점수</p>
               <div className={`text-6xl font-black mb-1 ${scoreColor(result.overallScore)}`}>{result.overallScore}</div>
@@ -743,6 +914,9 @@ export default function PostureAnalysisDialog({ open, onClose }: Props) {
             )}
 
             <div className="flex gap-2 pt-2">
+              <Button variant="outline" className="gap-2" onClick={handlePdfExport} data-testid="button-pdf-export">
+                <FileDown className="w-4 h-4" /> PDF 저장
+              </Button>
               <Button variant="outline" className="flex-1 gap-2" onClick={() => {
                 setStep(0);
                 setPhotos({ front: null, spread: null, side: null });

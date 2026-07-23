@@ -5004,6 +5004,31 @@ ${buildEmailFooter()}
     } catch { res.status(500).json({ message: "조회 실패" }); }
   });
 
+  // 조사완료 근로자 목록 (자세분석 PDF 대상자 선택용)
+  app.get('/api/musculoskeletal/completed-persons', isAuthenticated, async (req: any, res) => {
+    try {
+      const assessments = await storage.getMusculoskeletalAssessments();
+      const seen = new Set<string>();
+      const result: any[] = [];
+      for (const a of assessments as any[]) {
+        if (a.status !== '조사완료') continue;
+        const name: string = a.assessor || '';
+        if (!name) continue;
+        const key = `${name}|${a.department || ''}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        result.push({
+          id: a.id,
+          name,
+          department: a.department || '',
+          age: a.workerAge || '',
+          gender: a.workerGender || '',
+        });
+      }
+      res.json(result);
+    } catch { res.status(500).json({ message: '조회 실패' }); }
+  });
+
   // 면담 대기 목록 (부서장용 알림)
   app.get('/api/musculoskeletal-assessments/pending-interview-requests', isAuthenticated, async (req: any, res) => {
     try {
