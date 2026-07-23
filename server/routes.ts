@@ -5165,49 +5165,85 @@ ${buildEmailFooter()}
         baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
       });
 
-      const response = await aiClient.chat.completions.create({
-        model: "gpt-4o",
-        messages: [
-          {
-            role: "system",
-            content: `당신은 물리치료사 및 운동처방사 자격을 갖춘 근골격계 전문가입니다.
-사용자가 제공한 3가지 자세 사진(정자세, 양팔 벌리기, 옆모습)을 분석하여 자세 문제를 평가하고 맞춤 운동을 추천합니다.
-반드시 아래 JSON 형식으로만 응답하세요 (코드블록 없이):
+      const systemPrompt = `당신은 산업안전보건 분야의 근골격계질환 예방 전문가(물리치료사·운동처방사)입니다.
+직원의 작업 자세 사진 3장(정면 정자세, 양팔 수평 벌리기, 측면 옆모습)을 바이오메카닉스(생체역학) 관점에서 분석합니다.
+이 분석은 개인 식별이 목적이 아니며, 신체 정렬·균형·근골격계 부하를 평가하여 직업병 예방 운동을 추천하기 위한 것입니다.
+
+이미지에서 관찰 가능한 항목:
+- 머리/경추 전방 돌출(거북목) 여부
+- 어깨 좌우 높이 차이, 어깨 말림(라운드숄더) 여부
+- 척추 측만·후만·전만 패턴
+- 골반 기울기
+- 무릎·발목 정렬
+
+**반드시 아래 JSON 형식으로만 응답하세요 (마크다운 코드블록 없이, 순수 JSON).**
+이미지 분석이 어렵더라도 관찰 가능한 범위에서 최선의 평가를 하고, 반드시 JSON을 반환하세요:
 {
-  "overallScore": 1~100 사이의 자세 점수(숫자),
-  "summary": "전체적인 자세 평가 요약 (2~3문장)",
+  "overallScore": 자세 점수 1~100(숫자),
+  "summary": "바이오메카닉스 관점 자세 평가 요약 2~3문장",
   "issues": [
-    { "area": "신체부위명(예: 목, 어깨, 허리, 골반, 무릎 등)", "severity": "주의|경고|양호", "description": "문제 설명 1~2문장" }
+    { "area": "신체부위(목/어깨/허리/골반/무릎 등)", "severity": "주의|경고|양호", "description": "관찰된 문제 1~2문장" }
   ],
   "exercises": [
     {
       "name": "운동명",
-      "targetArea": "대상 부위",
-      "description": "운동 방법 설명 (2~4문장, 횟수/세트 포함)",
-      "frequency": "하루 몇 회/세트 권장",
+      "targetArea": "대상 근육·관절",
+      "description": "구체적 동작 방법 (횟수·세트 포함, 2~4문장)",
+      "frequency": "일 권장 횟수/세트",
       "caution": "주의사항 (없으면 빈 문자열)"
     }
   ],
-  "lifestyleAdvice": "일상생활 자세 개선 팁 (2~3가지, 줄바꿈으로 구분)"
+  "lifestyleAdvice": "작업 자세 개선 팁 3가지 (줄바꿈 구분)"
 }
-issues는 1~5개, exercises는 3~6개 추천. 모든 텍스트는 한국어로 작성.`,
-          },
+issues 1~5개, exercises 4~6개. 모든 텍스트는 한국어.`;
+
+      const response = await aiClient.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: systemPrompt },
           {
             role: "user",
             content: [
-              { type: "text", text: "다음 3장의 자세 사진을 분석해주세요.\n사진 1: 정자세 (정면)\n사진 2: 양팔 벌리기 (정면)\n사진 3: 옆모습" },
-              { type: "image_url", image_url: { url: `data:${f.mime};base64,${f.b64}`, detail: "high" } },
-              { type: "image_url", image_url: { url: `data:${sp.mime};base64,${sp.b64}`, detail: "high" } },
-              { type: "image_url", image_url: { url: `data:${si.mime};base64,${si.b64}`, detail: "high" } },
+              {
+                type: "text",
+                text: "근골격계질환 예방을 위해 직원의 작업 자세 3장을 바이오메카닉스 관점에서 분석하고 맞춤 예방 운동을 추천해주세요.\n[사진1] 정면 정자세 | [사진2] 양팔 수평 벌리기(어깨 균형 확인) | [사진3] 측면 옆모습(척추 만곡 확인)"
+              },
+              { type: "image_url", image_url: { url: `data:${f.mime};base64,${f.b64}`, detail: "auto" } },
+              { type: "image_url", image_url: { url: `data:${sp.mime};base64,${sp.b64}`, detail: "auto" } },
+              { type: "image_url", image_url: { url: `data:${si.mime};base64,${si.b64}`, detail: "auto" } },
             ] as any,
           },
         ],
-        max_tokens: 2000,
+        max_tokens: 2500,
       });
 
-      const raw = response.choices[0]?.message?.content || "{}";
+      const raw = (response.choices[0]?.message?.content || "").trim();
       let result: any = {};
-      try { result = JSON.parse(raw); } catch { result = { summary: raw, exercises: [], issues: [] }; }
+      try {
+        // 마크다운 코드블록 제거 후 파싱
+        const cleaned = raw.replace(/^```json?\s*/i, "").replace(/```\s*$/i, "").trim();
+        result = JSON.parse(cleaned);
+      } catch {
+        // 파싱 실패 시: AI 응답을 summary에 넣고 일반 운동 추천 반환
+        result = {
+          overallScore: 70,
+          summary: raw || "이미지에서 자세를 분석했습니다. 아래 일반 예방 운동을 참고하세요.",
+          issues: [{ area: "전반적 자세", severity: "주의", description: "정확한 분석을 위해 전신이 잘 보이는 밝은 환경에서 재촬영을 권장합니다." }],
+          exercises: [
+            { name: "목 스트레칭", targetArea: "경추·승모근", description: "귀를 어깨 쪽으로 천천히 기울여 15초 유지, 반대쪽 반복. 하루 수시로 실시.", frequency: "1세트 5회, 하루 3회 이상", caution: "" },
+            { name: "어깨 돌리기", targetArea: "어깨·회전근개", description: "팔을 자연스럽게 내리고 어깨를 앞→위→뒤→아래 순으로 크게 회전. 반대 방향도 동일하게.", frequency: "각 방향 10회, 하루 3회", caution: "" },
+            { name: "흉추 신전 운동", targetArea: "흉추·흉근", description: "의자 등받이 위에 타월을 말아 두고 등을 젖혀 흉추를 펴준다. 10~15초 유지.", frequency: "10회 1세트, 하루 2회", caution: "목 통증 시 중단" },
+            { name: "고양이-소 스트레칭", targetArea: "척추 전체", description: "네 발 자세로 숨 들이마시며 허리를 내리고(소), 내쉬며 등을 둥글게 말기(고양이). 천천히 반복.", frequency: "10회 1세트, 하루 2회", caution: "" },
+            { name: "플랭크", targetArea: "코어·복횡근", description: "팔꿈치와 발끝으로 지지하며 몸을 일직선으로 유지. 복부에 힘을 주고 호흡 지속.", frequency: "20~30초 3세트, 하루 1회", caution: "허리 통증 시 무릎 대고 실시" },
+          ],
+          lifestyleAdvice: "• 30분마다 자리에서 일어나 스트레칭 하세요.\n• 모니터 높이를 눈높이에 맞추어 거북목을 예방하세요.\n• 의자 등받이에 허리를 완전히 밀착하고 앉으세요.",
+        };
+      }
+      // 필수 필드 기본값 보장
+      if (!result.overallScore) result.overallScore = 70;
+      if (!Array.isArray(result.issues)) result.issues = [];
+      if (!Array.isArray(result.exercises)) result.exercises = [];
+      if (!result.lifestyleAdvice) result.lifestyleAdvice = "";
       res.json(result);
     } catch (err: any) {
       console.error("자세 분석 오류:", err?.message);

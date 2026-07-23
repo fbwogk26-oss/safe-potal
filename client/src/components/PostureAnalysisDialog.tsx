@@ -224,19 +224,36 @@ export default function PostureAnalysisDialog({ open, onClose }: Props) {
   const startCamera = useCallback(async () => {
     setCameraError(false);
     setCaptured(false);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } }
-      });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
-      setCameraActive(true);
-    } catch {
+
+    // getUserMedia가 없는 환경(비HTTPS 등) 즉시 폴백
+    if (!navigator?.mediaDevices?.getUserMedia) {
       setCameraError(true);
+      return;
     }
+
+    // 1차 시도: 전면 카메라
+    const constraints: MediaStreamConstraints[] = [
+      { video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } } },
+      { video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } } },
+      { video: true }, // 제약 없이 사용 가능한 카메라
+    ];
+
+    for (const c of constraints) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia(c);
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play();
+        }
+        setCameraActive(true);
+        return; // 성공 시 즉시 반환
+      } catch {
+        // 다음 제약 조건으로 재시도
+      }
+    }
+    // 모든 시도 실패
+    setCameraError(true);
   }, []);
 
   useEffect(() => {
@@ -459,14 +476,22 @@ export default function PostureAnalysisDialog({ open, onClose }: Props) {
                       </div>
                     )}
                     {cameraError && (
-                      <div className="flex flex-col items-center justify-center h-60 gap-4 text-white/80 p-6">
-                        <Camera className="w-10 h-10 opacity-50" />
-                        <p className="text-sm text-center">카메라를 사용할 수 없습니다.<br />사진 파일을 업로드해주세요.</p>
-                        <Button variant="outline" size="sm"
-                          className="bg-white/10 border-white/30 text-white hover:bg-white/20 gap-2"
+                      <div className="flex flex-col items-center justify-center gap-4 text-white/90 p-6" style={{ minHeight: 260 }}>
+                        <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center">
+                          <Camera className="w-8 h-8 opacity-60" />
+                        </div>
+                        <div className="text-center space-y-1">
+                          <p className="font-semibold text-base">카메라를 사용할 수 없습니다</p>
+                          <p className="text-xs text-white/60">카메라 권한을 허용하거나<br />아래 버튼으로 사진을 업로드하세요</p>
+                        </div>
+                        <Button size="lg"
+                          className="bg-purple-600 hover:bg-purple-500 text-white gap-2 px-8 text-base font-semibold"
                           onClick={() => fileInputRef.current?.click()}>
-                          <Upload className="w-4 h-4" /> 사진 업로드
+                          <Upload className="w-5 h-5" /> 사진 파일 선택하기
                         </Button>
+                        <button className="text-xs text-white/40 underline" onClick={startCamera}>
+                          카메라 다시 시도
+                        </button>
                       </div>
                     )}
                   </>
