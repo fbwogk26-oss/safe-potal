@@ -5219,15 +5219,31 @@ issues 1~5개, exercises 4~6개. 모든 텍스트는 한국어.`;
 
       const raw = (response.choices[0]?.message?.content || "").trim();
       let result: any = {};
+      // JSON 추출 시도: 마크다운 코드블록 → 텍스트 중 첫 번째 {} 블록 → 파싱 실패 시 기본값
+      const extractJson = (text: string): any => {
+        // 1) 마크다운 코드블록 제거
+        const noFence = text.replace(/^```json?\s*/im, "").replace(/```\s*$/im, "").trim();
+        try { return JSON.parse(noFence); } catch {}
+        // 2) 텍스트 안에서 가장 바깥 {} 블록 추출
+        const start = text.indexOf("{");
+        const end = text.lastIndexOf("}");
+        if (start !== -1 && end > start) {
+          try { return JSON.parse(text.slice(start, end + 1)); } catch {}
+        }
+        return null;
+      };
       try {
-        // 마크다운 코드블록 제거 후 파싱
-        const cleaned = raw.replace(/^```json?\s*/i, "").replace(/```\s*$/i, "").trim();
-        result = JSON.parse(cleaned);
+        const parsed = extractJson(raw);
+        if (parsed) {
+          result = parsed;
+        } else {
+          throw new Error("JSON 없음");
+        }
       } catch {
-        // 파싱 실패 시: AI 응답을 summary에 넣고 일반 운동 추천 반환
+        // 파싱 실패 시: 일반 운동 추천 반환 (raw 텍스트 노출 안 함)
         result = {
           overallScore: 70,
-          summary: raw || "이미지에서 자세를 분석했습니다. 아래 일반 예방 운동을 참고하세요.",
+          summary: "자세 분석을 완료했습니다. 정확한 분석을 위해 전신이 잘 보이는 밝은 환경에서 재촬영을 권장합니다.",
           issues: [{ area: "전반적 자세", severity: "주의", description: "정확한 분석을 위해 전신이 잘 보이는 밝은 환경에서 재촬영을 권장합니다." }],
           exercises: [
             { name: "목 스트레칭", targetArea: "경추·승모근", description: "귀를 어깨 쪽으로 천천히 기울여 15초 유지, 반대쪽 반복. 하루 수시로 실시.", frequency: "1세트 5회, 하루 3회 이상", caution: "" },
