@@ -462,12 +462,83 @@ export default function PostureAnalysisDialog({ open, onClose }: Props) {
                 </div>
               </div>
 
-              {/* 촬영 영역 */}
+              {/* 숨겨진 유틸 요소 - 항상 DOM에 존재 */}
               <canvas ref={canvasRef} className="hidden" />
               <input ref={fileInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFileUpload} />
 
+              {/* ── 카메라 영상 컨테이너 (video는 항상 DOM에 마운트, display로만 토글) ── */}
+              <div
+                className="relative rounded-xl overflow-hidden bg-black"
+                style={{ display: cameraActive && !captured ? "block" : "none" }}
+              >
+                <video ref={videoRef} autoPlay playsInline muted
+                  className="w-full object-cover block" style={{ maxHeight: 300 }} />
+                {/* 자세 실루엣 오버레이 */}
+                {currentPose && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none">
+                    <div style={{
+                      width: currentPose.key === "spread" ? "80%" : "26%",
+                      height: "84%",
+                      opacity: 0.25,
+                      filter: "drop-shadow(0 0 8px rgba(255,255,255,0.9))",
+                    }}>
+                      {currentPose.key === "front" && (
+                        <svg viewBox="0 0 100 220" className="w-full h-full" fill="white">
+                          <circle cx="50" cy="20" r="16"/>
+                          <rect x="44" y="35" width="12" height="11" rx="4"/>
+                          <rect x="28" y="46" width="44" height="50" rx="9"/>
+                          <rect x="12" y="50" width="16" height="42" rx="8"/>
+                          <rect x="72" y="50" width="16" height="42" rx="8"/>
+                          <ellipse cx="20" cy="97" rx="8" ry="7"/>
+                          <ellipse cx="80" cy="97" rx="8" ry="7"/>
+                          <rect x="29" y="96" width="18" height="62" rx="9"/>
+                          <rect x="53" y="96" width="18" height="62" rx="9"/>
+                          <ellipse cx="38" cy="162" rx="14" ry="8"/>
+                          <ellipse cx="62" cy="162" rx="14" ry="8"/>
+                        </svg>
+                      )}
+                      {currentPose.key === "spread" && (
+                        <svg viewBox="0 0 220 220" className="w-full h-full" fill="white">
+                          <circle cx="110" cy="20" r="16"/>
+                          <rect x="104" y="35" width="12" height="11" rx="4"/>
+                          <rect x="88" y="46" width="44" height="50" rx="9"/>
+                          <rect x="4" y="52" width="84" height="16" rx="8"/>
+                          <rect x="132" y="52" width="84" height="16" rx="8"/>
+                          <ellipse cx="9" cy="60" rx="8" ry="7"/>
+                          <ellipse cx="211" cy="60" rx="8" ry="7"/>
+                          <rect x="89" y="96" width="18" height="62" rx="9"/>
+                          <rect x="113" y="96" width="18" height="62" rx="9"/>
+                          <ellipse cx="98" cy="162" rx="14" ry="8"/>
+                          <ellipse cx="122" cy="162" rx="14" ry="8"/>
+                        </svg>
+                      )}
+                      {currentPose.key === "side" && (
+                        <svg viewBox="0 0 90 220" className="w-full h-full" fill="white">
+                          <ellipse cx="50" cy="20" rx="14" ry="16"/>
+                          <path d="M 62 20 Q 68 18 66 24" opacity="0.7"/>
+                          <rect x="43" y="35" width="12" height="11" rx="4"/>
+                          <rect x="34" y="46" width="28" height="50" rx="8"/>
+                          <rect x="20" y="52" width="14" height="38" rx="7"/>
+                          <rect x="56" y="52" width="11" height="34" rx="5" opacity="0.4"/>
+                          <ellipse cx="27" cy="95" rx="7" ry="6" opacity="0.6"/>
+                          <rect x="34" y="96" width="16" height="62" rx="8"/>
+                          <rect x="44" y="96" width="14" height="58" rx="7" opacity="0.4"/>
+                          <ellipse cx="38" cy="162" rx="18" ry="8"/>
+                        </svg>
+                      )}
+                    </div>
+                    <div className="absolute bottom-3 left-0 right-0 flex justify-center">
+                      <span className="bg-black/55 text-white/90 text-[11px] px-3 py-1 rounded-full backdrop-blur-sm">
+                        실루엣에 자세를 맞춰보세요
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* ── 상태별 UI ── */}
               {captured ? (
-                /* ── 촬영 완료: 미리보기 ── */
+                /* 촬영 완료: 미리보기 */
                 <div className="space-y-2">
                   <div className="relative rounded-xl overflow-hidden bg-black">
                     <img src={previews[currentKey!]} alt="촬영된 사진"
@@ -483,20 +554,20 @@ export default function PostureAnalysisDialog({ open, onClose }: Props) {
                   </Button>
                 </div>
               ) : !cameraRequested ? (
-                /* ── 선택 화면: 카메라 또는 파일 ── */
+                /* 선택 화면 */
                 <div className="rounded-xl border-2 border-dashed border-muted-foreground/20 bg-muted/30 flex flex-col items-center justify-center gap-4 py-8 px-4">
                   <p className="text-sm text-muted-foreground font-medium">사진을 어떻게 등록할까요?</p>
-                  <div className="flex flex-col sm:flex-row gap-3 w-full max-w-xs">
+                  <div className="flex gap-3 w-full max-w-xs">
                     <Button
-                      className="flex-1 bg-purple-600 hover:bg-purple-700 text-white gap-2 h-14 text-base flex-col py-2"
+                      className="flex-1 bg-purple-600 hover:bg-purple-700 text-white h-16 flex-col gap-1"
                       onClick={requestCamera}
                     >
                       <Camera className="w-6 h-6" />
-                      <span className="text-xs">카메라로 촬영</span>
+                      <span className="text-xs">카메라 촬영</span>
                     </Button>
                     <Button
                       variant="outline"
-                      className="flex-1 gap-2 h-14 text-base flex-col py-2"
+                      className="flex-1 h-16 flex-col gap-1"
                       onClick={() => fileInputRef.current?.click()}
                     >
                       <Upload className="w-6 h-6" />
@@ -505,11 +576,8 @@ export default function PostureAnalysisDialog({ open, onClose }: Props) {
                   </div>
                 </div>
               ) : cameraError ? (
-                /* ── 카메라 오류 ── */
-                <div className="rounded-xl bg-black flex flex-col items-center justify-center gap-4 py-8 px-4 text-white/90" style={{ minHeight: 220 }}>
-                  <div className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center">
-                    <Camera className="w-7 h-7 opacity-60" />
-                  </div>
+                /* 카메라 오류 */
+                <div className="rounded-xl bg-black flex flex-col items-center justify-center gap-4 py-8 px-4 text-white/90" style={{ minHeight: 180 }}>
                   <div className="text-center">
                     <p className="font-semibold">카메라를 사용할 수 없습니다</p>
                     <p className="text-xs text-white/50 mt-1">브라우저에서 카메라 권한을 허용하거나<br />파일로 업로드해 주세요</p>
@@ -518,88 +586,18 @@ export default function PostureAnalysisDialog({ open, onClose }: Props) {
                     onClick={() => fileInputRef.current?.click()}>
                     <Upload className="w-5 h-5" /> 사진 파일 선택하기
                   </Button>
-                  <button className="text-xs text-white/40 underline" onClick={requestCamera}>
-                    카메라 다시 시도
-                  </button>
+                  <button className="text-xs text-white/40 underline" onClick={requestCamera}>카메라 다시 시도</button>
                 </div>
-              ) : !cameraActive ? (
-                /* ── 카메라 연결 중 ── */
-                <div className="rounded-xl bg-black flex flex-col items-center justify-center gap-3 text-white/60" style={{ minHeight: 220 }}>
+              ) : cameraActive ? (
+                /* 카메라 활성: 촬영 버튼 */
+                <Button className="w-full bg-purple-600 hover:bg-purple-700 text-white gap-2 h-12 text-base" onClick={capturePhoto}>
+                  <Camera className="w-5 h-5" /> 지금 촬영하기
+                </Button>
+              ) : (
+                /* 연결 중 */
+                <div className="rounded-xl bg-black flex flex-col items-center justify-center gap-3 text-white/60" style={{ minHeight: 160 }}>
                   <Loader2 className="w-8 h-8 animate-spin" />
                   <p className="text-sm">카메라 연결 중...</p>
-                </div>
-              ) : (
-                /* ── 카메라 활성: 영상 + 실루엣 오버레이 ── */
-                <div className="space-y-2">
-                  <div className="relative rounded-xl overflow-hidden bg-black">
-                    <video ref={videoRef} autoPlay playsInline muted
-                      className="w-full object-cover block" style={{ maxHeight: 300 }} />
-                    {/* 자세 실루엣 가이드 오버레이 */}
-                    {currentPose && (
-                      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none">
-                        <div style={{
-                          width: currentPose.key === "spread" ? "80%" : "26%",
-                          height: "84%",
-                          opacity: 0.25,
-                          filter: "drop-shadow(0 0 8px rgba(255,255,255,0.9))",
-                        }}>
-                          {currentPose.key === "front" && (
-                            <svg viewBox="0 0 100 220" className="w-full h-full" fill="white">
-                              <circle cx="50" cy="20" r="16"/>
-                              <rect x="44" y="35" width="12" height="11" rx="4"/>
-                              <rect x="28" y="46" width="44" height="50" rx="9"/>
-                              <rect x="12" y="50" width="16" height="42" rx="8"/>
-                              <rect x="72" y="50" width="16" height="42" rx="8"/>
-                              <ellipse cx="20" cy="97" rx="8" ry="7"/>
-                              <ellipse cx="80" cy="97" rx="8" ry="7"/>
-                              <rect x="29" y="96" width="18" height="62" rx="9"/>
-                              <rect x="53" y="96" width="18" height="62" rx="9"/>
-                              <ellipse cx="38" cy="162" rx="14" ry="8"/>
-                              <ellipse cx="62" cy="162" rx="14" ry="8"/>
-                            </svg>
-                          )}
-                          {currentPose.key === "spread" && (
-                            <svg viewBox="0 0 220 220" className="w-full h-full" fill="white">
-                              <circle cx="110" cy="20" r="16"/>
-                              <rect x="104" y="35" width="12" height="11" rx="4"/>
-                              <rect x="88" y="46" width="44" height="50" rx="9"/>
-                              <rect x="4" y="52" width="84" height="16" rx="8"/>
-                              <rect x="132" y="52" width="84" height="16" rx="8"/>
-                              <ellipse cx="9" cy="60" rx="8" ry="7"/>
-                              <ellipse cx="211" cy="60" rx="8" ry="7"/>
-                              <rect x="89" y="96" width="18" height="62" rx="9"/>
-                              <rect x="113" y="96" width="18" height="62" rx="9"/>
-                              <ellipse cx="98" cy="162" rx="14" ry="8"/>
-                              <ellipse cx="122" cy="162" rx="14" ry="8"/>
-                            </svg>
-                          )}
-                          {currentPose.key === "side" && (
-                            <svg viewBox="0 0 90 220" className="w-full h-full" fill="white">
-                              <ellipse cx="50" cy="20" rx="14" ry="16"/>
-                              <path d="M 62 20 Q 68 18 66 24" opacity="0.7"/>
-                              <rect x="43" y="35" width="12" height="11" rx="4"/>
-                              <rect x="34" y="46" width="28" height="50" rx="8"/>
-                              <rect x="20" y="52" width="14" height="38" rx="7"/>
-                              <rect x="56" y="52" width="11" height="34" rx="5" opacity="0.4"/>
-                              <ellipse cx="27" cy="95" rx="7" ry="6" opacity="0.6"/>
-                              <rect x="34" y="96" width="16" height="62" rx="8"/>
-                              <rect x="44" y="96" width="14" height="58" rx="7" opacity="0.4"/>
-                              <ellipse cx="38" cy="162" rx="18" ry="8"/>
-                            </svg>
-                          )}
-                        </div>
-                        <div className="absolute bottom-3 left-0 right-0 flex justify-center">
-                          <span className="bg-black/55 text-white/90 text-[11px] px-3 py-1 rounded-full backdrop-blur-sm">
-                            실루엣에 자세를 맞춰보세요
-                          </span>
-                        </div>
-                        <div className="absolute inset-0 rounded-xl" style={{ boxShadow: "inset 0 0 40px rgba(0,0,0,0.3)" }} />
-                      </div>
-                    )}
-                  </div>
-                  <Button className="w-full bg-purple-600 hover:bg-purple-700 text-white gap-2 h-12 text-base" onClick={capturePhoto}>
-                    <Camera className="w-5 h-5" /> 지금 촬영하기
-                  </Button>
                 </div>
               )}
 
