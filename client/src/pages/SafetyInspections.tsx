@@ -832,7 +832,7 @@ export default function SafetyInspections() {
 
   const weekEndDate = useMemo(() => {
     const d = new Date(selectedWeekStart);
-    d.setDate(d.getDate() + 6);
+    d.setDate(d.getDate() + 4); // 월요일 + 4 = 금요일
     return d;
   }, [selectedWeekStart]);
 
