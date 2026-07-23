@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ClipboardCheck, ClipboardList, Plus, Trash2, ImagePlus, X, Calendar, MapPin, User, ChevronDown, ChevronUp, Download, Check, AlertCircle, BarChart3, Settings, FileText, Loader2, Pencil, CheckSquare, Upload, Eye, Mail } from "lucide-react";
+import { ClipboardCheck, ClipboardList, Plus, Trash2, ImagePlus, X, Calendar, MapPin, User, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Download, Check, AlertCircle, BarChart3, Settings, FileText, Loader2, Pencil, CheckSquare, Upload, Eye, Mail } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -259,8 +259,16 @@ export default function SafetyInspections() {
   const [bulkExcelFile, setBulkExcelFile] = useState<File | null>(null);
   const bulkPdfInputRef = useRef<HTMLInputElement>(null);
   const bulkExcelInputRef = useRef<HTMLInputElement>(null);
-  const [dashboardPeriod, setDashboardPeriod] = useState<"month" | "year">("month");
+  const [dashboardPeriod, setDashboardPeriod] = useState<"week" | "month" | "year">("month");
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
+  const [selectedWeekStart, setSelectedWeekStart] = useState<Date>(() => {
+    const now = new Date();
+    const day = now.getDay(); // 0=일, 1=월, ..., 6=토
+    const diff = day === 0 ? -6 : 1 - day; // 이번 주 월요일
+    const monday = new Date(now);
+    monday.setDate(now.getDate() + diff);
+    return monday;
+  });
 
   const handleBulkFileSelect = (e: React.ChangeEvent<HTMLInputElement>, type: 'pdf' | 'excel') => {
     const files = Array.from(e.target.files || []);
@@ -822,14 +830,23 @@ export default function SafetyInspections() {
   const poorCount = checklist.filter(c => c.status === '미흡').length;
   const totalCount = checklist.length;
 
+  const weekEndDate = useMemo(() => {
+    const d = new Date(selectedWeekStart);
+    d.setDate(d.getDate() + 6);
+    return d;
+  }, [selectedWeekStart]);
+
   const inspectionStats = useMemo(() => {
     if (!rawInspections || rawInspections.length === 0 || !teams) return null;
     const now = new Date();
     const currentYear = format(now, "yyyy");
     const monthStr = String(selectedMonth).padStart(2, "0");
     const targetMonth = `${currentYear}-${monthStr}`;
+    const weekStart = format(selectedWeekStart, "yyyy-MM-dd");
+    const weekEnd = format(weekEndDate, "yyyy-MM-dd");
 
     const filtered = rawInspections.filter(insp => {
+      if (dashboardPeriod === "week") return insp.inspectionDate >= weekStart && insp.inspectionDate <= weekEnd;
       if (dashboardPeriod === "month") return insp.inspectionDate.startsWith(targetMonth);
       return insp.inspectionDate.startsWith(currentYear);
     });
@@ -839,7 +856,7 @@ export default function SafetyInspections() {
     const safetyTeamjang = inspectionTargets?.safetyTeamjang || 0;
     const accompanyBujang = inspectionTargets?.accompanyBujang || 0;
     const accompanyTeamjang = inspectionTargets?.accompanyTeamjang || 0;
-    const multiplier = dashboardPeriod === "year" ? 12 : 1;
+    const multiplier = dashboardPeriod === "year" ? 12 : dashboardPeriod === "week" ? 0.25 : 1;
     const safetyTotal = (safetyBujang + safetyTeamjang) * multiplier;
     const accompanyTotal = (accompanyBujang + accompanyTeamjang) * multiplier;
 
@@ -879,9 +896,11 @@ export default function SafetyInspections() {
       safetyTotal, accompanyTotal, safetyPerDept, accompanyPerDept, combinedPerDept,
       totalTarget,
       chartData,
-      periodLabel: dashboardPeriod === "month" ? `${selectedMonth}월` : `${now.getFullYear()}년`,
+      periodLabel: dashboardPeriod === "week"
+        ? `${format(selectedWeekStart, "M/d")}~${format(weekEndDate, "M/d")}`
+        : dashboardPeriod === "month" ? `${selectedMonth}월` : `${now.getFullYear()}년`,
     };
-  }, [rawInspections, teams, inspectionTargets, dashboardPeriod, selectedMonth]);
+  }, [rawInspections, teams, inspectionTargets, dashboardPeriod, selectedMonth, selectedWeekStart, weekEndDate]);
 
   const filteredInspections = useMemo(() => {
     if (!rawInspections) return [];
@@ -889,13 +908,17 @@ export default function SafetyInspections() {
     let result: typeof rawInspections;
     if (dashboardPeriod === "year") {
       result = rawInspections.filter(i => i.inspectionDate.startsWith(currentYear));
+    } else if (dashboardPeriod === "week") {
+      const weekStart = format(selectedWeekStart, "yyyy-MM-dd");
+      const weekEnd = format(weekEndDate, "yyyy-MM-dd");
+      result = rawInspections.filter(i => i.inspectionDate >= weekStart && i.inspectionDate <= weekEnd);
     } else {
       const monthStr = String(selectedMonth).padStart(2, "0");
       const prefix = `${currentYear}-${monthStr}`;
       result = rawInspections.filter(i => i.inspectionDate.startsWith(prefix));
     }
     return [...result].sort((a, b) => b.inspectionDate.localeCompare(a.inspectionDate));
-  }, [rawInspections, selectedMonth, dashboardPeriod]);
+  }, [rawInspections, selectedMonth, dashboardPeriod, selectedWeekStart, weekEndDate]);
 
   const [showInspDashboard, setShowInspDashboard] = useState(true);
 
@@ -1073,10 +1096,29 @@ export default function SafetyInspections() {
                 <CardContent className="p-3 sm:p-4 space-y-4">
                   {/* 기간 선택 */}
                   <div className="flex items-center gap-1 flex-wrap">
+                    <Button variant={dashboardPeriod === "week" ? "default" : "outline"} size="sm" className="h-7 text-xs px-2.5"
+                      onClick={(e) => { e.stopPropagation(); setDashboardPeriod("week"); }} data-testid="button-period-week">주별</Button>
                     <Button variant={dashboardPeriod === "month" ? "default" : "outline"} size="sm" className="h-7 text-xs px-2.5"
                       onClick={(e) => { e.stopPropagation(); setDashboardPeriod("month"); }} data-testid="button-period-month">월별</Button>
                     <Button variant={dashboardPeriod === "year" ? "default" : "outline"} size="sm" className="h-7 text-xs px-2.5"
                       onClick={(e) => { e.stopPropagation(); setDashboardPeriod("year"); }} data-testid="button-period-year">연간</Button>
+                    {dashboardPeriod === "week" && (
+                      <div className="flex items-center gap-0.5">
+                        <Button variant="outline" size="sm" className="h-7 w-7 p-0"
+                          onClick={(e) => { e.stopPropagation(); setSelectedWeekStart(prev => { const d = new Date(prev); d.setDate(d.getDate() - 7); return d; }); }}
+                          data-testid="button-week-prev">
+                          <ChevronLeft className="w-3 h-3" />
+                        </Button>
+                        <span className="text-xs font-medium px-1 min-w-[80px] text-center">
+                          {format(selectedWeekStart, "M/d")}~{format(weekEndDate, "M/d")}
+                        </span>
+                        <Button variant="outline" size="sm" className="h-7 w-7 p-0"
+                          onClick={(e) => { e.stopPropagation(); setSelectedWeekStart(prev => { const d = new Date(prev); d.setDate(d.getDate() + 7); return d; }); }}
+                          data-testid="button-week-next">
+                          <ChevronRight className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    )}
                     {dashboardPeriod === "month" && (
                       <Select value={String(selectedMonth)} onValueChange={(v) => setSelectedMonth(Number(v))}>
                         <SelectTrigger className="w-[72px] h-7 text-xs" data-testid="select-dashboard-month" onClick={(e) => e.stopPropagation()}>
@@ -1469,7 +1511,7 @@ export default function SafetyInspections() {
             <Calendar className="w-4 h-4 text-muted-foreground" />
             <span className="text-sm font-medium text-muted-foreground">점검 목록</span>
             <Badge variant="secondary" className="text-xs">
-              {dashboardPeriod === "year" ? `${new Date().getFullYear()}년 전체` : `${selectedMonth}월`}
+              {dashboardPeriod === "year" ? `${new Date().getFullYear()}년 전체` : dashboardPeriod === "week" ? `${format(selectedWeekStart, "M/d")}~${format(weekEndDate, "M/d")}` : `${selectedMonth}월`}
             </Badge>
             <span className="text-xs text-muted-foreground">{filteredInspections.length}건</span>
           </div>
@@ -1512,7 +1554,7 @@ export default function SafetyInspections() {
           <div className="text-center py-8 text-muted-foreground">로딩 중...</div>
         ) : filteredInspections.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
-            {dashboardPeriod === "year" ? "올해" : `${selectedMonth}월`} 등록된 점검 내역이 없습니다.
+            {dashboardPeriod === "year" ? "올해" : dashboardPeriod === "week" ? `${format(selectedWeekStart, "M/d")}~${format(weekEndDate, "M/d")} 주간` : `${selectedMonth}월`} 등록된 점검 내역이 없습니다.
           </div>
         ) : (
           <Card>
