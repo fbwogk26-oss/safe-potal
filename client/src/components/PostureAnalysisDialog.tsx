@@ -460,15 +460,80 @@ export default function PostureAnalysisDialog({ open, onClose }: Props) {
                     <video ref={videoRef} autoPlay playsInline muted
                       className={`w-full object-cover ${cameraActive ? "block" : "hidden"}`}
                       style={{ maxHeight: 300 }} />
-                    {/* 전신 가이드 프레임 (카메라 활성 시) */}
-                    {cameraActive && (
-                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                        <div className="border-2 border-white/40 border-dashed rounded-lg"
-                          style={{ width: "38%", height: "88%", boxShadow: "0 0 0 9999px rgba(0,0,0,0.18)" }}>
-                          <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-white/70 text-[10px] whitespace-nowrap">전신이 이 안에 들어오게</span>
+                    {/* 자세 가이드 오버레이 (카메라 활성 시) */}
+                    {cameraActive && currentPose && (() => {
+                      const isSpread = currentPose.key === "spread";
+                      const isSide = currentPose.key === "side";
+                      return (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none">
+                          {/* 실루엣 SVG 가이드 */}
+                          <div
+                            style={{
+                              width: isSpread ? "78%" : "28%",
+                              height: "82%",
+                              opacity: 0.22,
+                              filter: "drop-shadow(0 0 6px rgba(255,255,255,0.8))",
+                            }}
+                          >
+                            {currentPose.key === "front" && (
+                              <svg viewBox="0 0 100 220" className="w-full h-full" fill="white">
+                                <circle cx="50" cy="20" r="16"/>
+                                <rect x="44" y="35" width="12" height="11" rx="4"/>
+                                <rect x="28" y="46" width="44" height="50" rx="9"/>
+                                <rect x="12" y="50" width="16" height="42" rx="8"/>
+                                <rect x="72" y="50" width="16" height="42" rx="8"/>
+                                <ellipse cx="20" cy="97" rx="8" ry="7"/>
+                                <ellipse cx="80" cy="97" rx="8" ry="7"/>
+                                <rect x="29" y="96" width="18" height="62" rx="9"/>
+                                <rect x="53" y="96" width="18" height="62" rx="9"/>
+                                <ellipse cx="38" cy="162" rx="14" ry="8"/>
+                                <ellipse cx="62" cy="162" rx="14" ry="8"/>
+                              </svg>
+                            )}
+                            {currentPose.key === "spread" && (
+                              <svg viewBox="0 0 220 220" className="w-full h-full" fill="white">
+                                <circle cx="110" cy="20" r="16"/>
+                                <rect x="104" y="35" width="12" height="11" rx="4"/>
+                                <rect x="88" y="46" width="44" height="50" rx="9"/>
+                                <rect x="4" y="52" width="84" height="16" rx="8"/>
+                                <rect x="132" y="52" width="84" height="16" rx="8"/>
+                                <ellipse cx="9" cy="60" rx="8" ry="7"/>
+                                <ellipse cx="211" cy="60" rx="8" ry="7"/>
+                                <rect x="89" y="96" width="18" height="62" rx="9"/>
+                                <rect x="113" y="96" width="18" height="62" rx="9"/>
+                                <ellipse cx="98" cy="162" rx="14" ry="8"/>
+                                <ellipse cx="122" cy="162" rx="14" ry="8"/>
+                              </svg>
+                            )}
+                            {currentPose.key === "side" && (
+                              <svg viewBox="0 0 90 220" className="w-full h-full" fill="white">
+                                <ellipse cx="50" cy="20" rx="14" ry="16"/>
+                                <path d="M 62 20 Q 68 18 66 24" opacity="0.7"/>
+                                <rect x="43" y="35" width="12" height="11" rx="4"/>
+                                <rect x="34" y="46" width="28" height="50" rx="8"/>
+                                <rect x="20" y="52" width="14" height="38" rx="7"/>
+                                <rect x="56" y="52" width="11" height="34" rx="5" opacity="0.4"/>
+                                <ellipse cx="27" cy="95" rx="7" ry="6" opacity="0.6"/>
+                                <rect x="34" y="96" width="16" height="62" rx="8"/>
+                                <rect x="44" y="96" width="14" height="58" rx="7" opacity="0.4"/>
+                                <ellipse cx="38" cy="162" rx="18" ry="8"/>
+                              </svg>
+                            )}
+                          </div>
+
+                          {/* 하단 안내 텍스트 */}
+                          <div className="absolute bottom-3 left-0 right-0 flex justify-center">
+                            <span className="bg-black/50 text-white/90 text-[11px] px-3 py-1 rounded-full backdrop-blur-sm">
+                              실루엣에 자세를 맞춰보세요
+                            </span>
+                          </div>
+
+                          {/* 가장자리 어두운 비네팅 */}
+                          <div className="absolute inset-0 rounded-xl pointer-events-none"
+                            style={{ boxShadow: "inset 0 0 40px rgba(0,0,0,0.35)" }} />
                         </div>
-                      </div>
-                    )}
+                      );
+                    })()}
                     {!cameraActive && !cameraError && (
                       <div className="flex flex-col items-center justify-center h-60 gap-3 text-white/60">
                         <Loader2 className="w-8 h-8 animate-spin" />
