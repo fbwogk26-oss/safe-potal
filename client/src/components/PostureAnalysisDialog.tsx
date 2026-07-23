@@ -202,6 +202,7 @@ export default function PostureAnalysisDialog({ open, onClose }: Props) {
   const [result, setResult] = useState<PostureResult | null>(null);
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState(false);
+  const [cameraRequested, setCameraRequested] = useState(false); // 사용자가 카메라 버튼 클릭했는지
   const [captured, setCaptured] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -256,13 +257,12 @@ export default function PostureAnalysisDialog({ open, onClose }: Props) {
     setCameraError(true);
   }, []);
 
+  // step이 바뀌면 카메라 정리 + 선택 화면으로 되돌리기 (자동 시작 안 함)
   useEffect(() => {
-    if (typeof step === "number") {
-      stopCamera();
-      startCamera();
-    } else {
-      stopCamera();
-    }
+    stopCamera();
+    setCameraRequested(false);
+    setCameraError(false);
+    setCaptured(false);
     return () => { stopCamera(); };
   }, [step]);
 
@@ -274,6 +274,8 @@ export default function PostureAnalysisDialog({ open, onClose }: Props) {
       setPreviews({ front: "", spread: "", side: "" });
       setResult(null);
       setCaptured(false);
+      setCameraRequested(false);
+      setCameraError(false);
     }
   }, [open]);
 
@@ -300,7 +302,14 @@ export default function PostureAnalysisDialog({ open, onClose }: Props) {
     setPhotos(p => ({ ...p, [currentKey]: null }));
     setPreviews(p => ({ ...p, [currentKey]: "" }));
     setCaptured(false);
-    startCamera();
+    setCameraRequested(false);
+    setCameraError(false);
+    stopCamera();
+  };
+
+  const requestCamera = async () => {
+    setCameraRequested(true);
+    await startCamera();
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -453,147 +462,146 @@ export default function PostureAnalysisDialog({ open, onClose }: Props) {
                 </div>
               </div>
 
-              {/* 카메라/미리보기 */}
-              <div className="relative bg-black rounded-xl overflow-hidden" style={{ minHeight: 260 }}>
-                {!captured ? (
-                  <>
-                    <video ref={videoRef} autoPlay playsInline muted
-                      className={`w-full object-cover ${cameraActive ? "block" : "hidden"}`}
-                      style={{ maxHeight: 300 }} />
-                    {/* 자세 가이드 오버레이 (카메라 활성 시) */}
-                    {cameraActive && currentPose && (() => {
-                      const isSpread = currentPose.key === "spread";
-                      const isSide = currentPose.key === "side";
-                      return (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none">
-                          {/* 실루엣 SVG 가이드 */}
-                          <div
-                            style={{
-                              width: isSpread ? "78%" : "28%",
-                              height: "82%",
-                              opacity: 0.22,
-                              filter: "drop-shadow(0 0 6px rgba(255,255,255,0.8))",
-                            }}
-                          >
-                            {currentPose.key === "front" && (
-                              <svg viewBox="0 0 100 220" className="w-full h-full" fill="white">
-                                <circle cx="50" cy="20" r="16"/>
-                                <rect x="44" y="35" width="12" height="11" rx="4"/>
-                                <rect x="28" y="46" width="44" height="50" rx="9"/>
-                                <rect x="12" y="50" width="16" height="42" rx="8"/>
-                                <rect x="72" y="50" width="16" height="42" rx="8"/>
-                                <ellipse cx="20" cy="97" rx="8" ry="7"/>
-                                <ellipse cx="80" cy="97" rx="8" ry="7"/>
-                                <rect x="29" y="96" width="18" height="62" rx="9"/>
-                                <rect x="53" y="96" width="18" height="62" rx="9"/>
-                                <ellipse cx="38" cy="162" rx="14" ry="8"/>
-                                <ellipse cx="62" cy="162" rx="14" ry="8"/>
-                              </svg>
-                            )}
-                            {currentPose.key === "spread" && (
-                              <svg viewBox="0 0 220 220" className="w-full h-full" fill="white">
-                                <circle cx="110" cy="20" r="16"/>
-                                <rect x="104" y="35" width="12" height="11" rx="4"/>
-                                <rect x="88" y="46" width="44" height="50" rx="9"/>
-                                <rect x="4" y="52" width="84" height="16" rx="8"/>
-                                <rect x="132" y="52" width="84" height="16" rx="8"/>
-                                <ellipse cx="9" cy="60" rx="8" ry="7"/>
-                                <ellipse cx="211" cy="60" rx="8" ry="7"/>
-                                <rect x="89" y="96" width="18" height="62" rx="9"/>
-                                <rect x="113" y="96" width="18" height="62" rx="9"/>
-                                <ellipse cx="98" cy="162" rx="14" ry="8"/>
-                                <ellipse cx="122" cy="162" rx="14" ry="8"/>
-                              </svg>
-                            )}
-                            {currentPose.key === "side" && (
-                              <svg viewBox="0 0 90 220" className="w-full h-full" fill="white">
-                                <ellipse cx="50" cy="20" rx="14" ry="16"/>
-                                <path d="M 62 20 Q 68 18 66 24" opacity="0.7"/>
-                                <rect x="43" y="35" width="12" height="11" rx="4"/>
-                                <rect x="34" y="46" width="28" height="50" rx="8"/>
-                                <rect x="20" y="52" width="14" height="38" rx="7"/>
-                                <rect x="56" y="52" width="11" height="34" rx="5" opacity="0.4"/>
-                                <ellipse cx="27" cy="95" rx="7" ry="6" opacity="0.6"/>
-                                <rect x="34" y="96" width="16" height="62" rx="8"/>
-                                <rect x="44" y="96" width="14" height="58" rx="7" opacity="0.4"/>
-                                <ellipse cx="38" cy="162" rx="18" ry="8"/>
-                              </svg>
-                            )}
-                          </div>
+              {/* 촬영 영역 */}
+              <canvas ref={canvasRef} className="hidden" />
+              <input ref={fileInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFileUpload} />
 
-                          {/* 하단 안내 텍스트 */}
-                          <div className="absolute bottom-3 left-0 right-0 flex justify-center">
-                            <span className="bg-black/50 text-white/90 text-[11px] px-3 py-1 rounded-full backdrop-blur-sm">
-                              실루엣에 자세를 맞춰보세요
-                            </span>
-                          </div>
-
-                          {/* 가장자리 어두운 비네팅 */}
-                          <div className="absolute inset-0 rounded-xl pointer-events-none"
-                            style={{ boxShadow: "inset 0 0 40px rgba(0,0,0,0.35)" }} />
-                        </div>
-                      );
-                    })()}
-                    {!cameraActive && !cameraError && (
-                      <div className="flex flex-col items-center justify-center h-60 gap-3 text-white/60">
-                        <Loader2 className="w-8 h-8 animate-spin" />
-                        <p className="text-sm">카메라 연결 중...</p>
-                      </div>
-                    )}
-                    {cameraError && (
-                      <div className="flex flex-col items-center justify-center gap-4 text-white/90 p-6" style={{ minHeight: 260 }}>
-                        <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center">
-                          <Camera className="w-8 h-8 opacity-60" />
-                        </div>
-                        <div className="text-center space-y-1">
-                          <p className="font-semibold text-base">카메라를 사용할 수 없습니다</p>
-                          <p className="text-xs text-white/60">카메라 권한을 허용하거나<br />아래 버튼으로 사진을 업로드하세요</p>
-                        </div>
-                        <Button size="lg"
-                          className="bg-purple-600 hover:bg-purple-500 text-white gap-2 px-8 text-base font-semibold"
-                          onClick={() => fileInputRef.current?.click()}>
-                          <Upload className="w-5 h-5" /> 사진 파일 선택하기
-                        </Button>
-                        <button className="text-xs text-white/40 underline" onClick={startCamera}>
-                          카메라 다시 시도
-                        </button>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <img src={previews[currentKey!]} alt="촬영된 사진"
-                    className="w-full object-cover" style={{ maxHeight: 300 }} />
-                )}
-                <canvas ref={canvasRef} className="hidden" />
-                <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
-              </div>
-
-              {/* 촬영 버튼 */}
-              <div className="flex gap-2">
-                {!captured ? (
-                  <>
-                    {cameraActive && (
-                      <Button className="flex-1 bg-purple-600 hover:bg-purple-700 text-white gap-2 h-12 text-base" onClick={capturePhoto}>
-                        <Camera className="w-5 h-5" /> 촬영하기
-                      </Button>
-                    )}
-                    {cameraError && (
-                      <Button className="flex-1 bg-purple-600 hover:bg-purple-700 text-white gap-2 h-12" onClick={() => fileInputRef.current?.click()}>
-                        <Upload className="w-5 h-5" /> 사진 선택
-                      </Button>
-                    )}
-                    {!cameraActive && !cameraError && (
-                      <Button variant="outline" className="flex-1 h-12 gap-2" onClick={() => fileInputRef.current?.click()}>
-                        <Upload className="w-4 h-4" /> 파일로 업로드
-                      </Button>
-                    )}
-                  </>
-                ) : (
-                  <Button variant="outline" className="flex-1 gap-2 h-12" onClick={retakePhoto}>
+              {captured ? (
+                /* ── 촬영 완료: 미리보기 ── */
+                <div className="space-y-2">
+                  <div className="relative rounded-xl overflow-hidden bg-black">
+                    <img src={previews[currentKey!]} alt="촬영된 사진"
+                      className="w-full object-cover" style={{ maxHeight: 300 }} />
+                    <div className="absolute top-2 right-2">
+                      <span className="bg-green-500 text-white text-xs px-2.5 py-1 rounded-full font-semibold flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> 촬영 완료
+                      </span>
+                    </div>
+                  </div>
+                  <Button variant="outline" className="w-full gap-2 h-11" onClick={retakePhoto}>
                     <RefreshCw className="w-4 h-4" /> 다시 촬영
                   </Button>
-                )}
-              </div>
+                </div>
+              ) : !cameraRequested ? (
+                /* ── 선택 화면: 카메라 또는 파일 ── */
+                <div className="rounded-xl border-2 border-dashed border-muted-foreground/20 bg-muted/30 flex flex-col items-center justify-center gap-4 py-8 px-4">
+                  <p className="text-sm text-muted-foreground font-medium">사진을 어떻게 등록할까요?</p>
+                  <div className="flex flex-col sm:flex-row gap-3 w-full max-w-xs">
+                    <Button
+                      className="flex-1 bg-purple-600 hover:bg-purple-700 text-white gap-2 h-14 text-base flex-col py-2"
+                      onClick={requestCamera}
+                    >
+                      <Camera className="w-6 h-6" />
+                      <span className="text-xs">카메라로 촬영</span>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="flex-1 gap-2 h-14 text-base flex-col py-2"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <Upload className="w-6 h-6" />
+                      <span className="text-xs">파일 업로드</span>
+                    </Button>
+                  </div>
+                </div>
+              ) : cameraError ? (
+                /* ── 카메라 오류 ── */
+                <div className="rounded-xl bg-black flex flex-col items-center justify-center gap-4 py-8 px-4 text-white/90" style={{ minHeight: 220 }}>
+                  <div className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center">
+                    <Camera className="w-7 h-7 opacity-60" />
+                  </div>
+                  <div className="text-center">
+                    <p className="font-semibold">카메라를 사용할 수 없습니다</p>
+                    <p className="text-xs text-white/50 mt-1">브라우저에서 카메라 권한을 허용하거나<br />파일로 업로드해 주세요</p>
+                  </div>
+                  <Button size="lg" className="bg-purple-600 hover:bg-purple-500 text-white gap-2 px-8 font-semibold"
+                    onClick={() => fileInputRef.current?.click()}>
+                    <Upload className="w-5 h-5" /> 사진 파일 선택하기
+                  </Button>
+                  <button className="text-xs text-white/40 underline" onClick={requestCamera}>
+                    카메라 다시 시도
+                  </button>
+                </div>
+              ) : !cameraActive ? (
+                /* ── 카메라 연결 중 ── */
+                <div className="rounded-xl bg-black flex flex-col items-center justify-center gap-3 text-white/60" style={{ minHeight: 220 }}>
+                  <Loader2 className="w-8 h-8 animate-spin" />
+                  <p className="text-sm">카메라 연결 중...</p>
+                </div>
+              ) : (
+                /* ── 카메라 활성: 영상 + 실루엣 오버레이 ── */
+                <div className="space-y-2">
+                  <div className="relative rounded-xl overflow-hidden bg-black">
+                    <video ref={videoRef} autoPlay playsInline muted
+                      className="w-full object-cover block" style={{ maxHeight: 300 }} />
+                    {/* 자세 실루엣 가이드 오버레이 */}
+                    {currentPose && (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none">
+                        <div style={{
+                          width: currentPose.key === "spread" ? "80%" : "26%",
+                          height: "84%",
+                          opacity: 0.25,
+                          filter: "drop-shadow(0 0 8px rgba(255,255,255,0.9))",
+                        }}>
+                          {currentPose.key === "front" && (
+                            <svg viewBox="0 0 100 220" className="w-full h-full" fill="white">
+                              <circle cx="50" cy="20" r="16"/>
+                              <rect x="44" y="35" width="12" height="11" rx="4"/>
+                              <rect x="28" y="46" width="44" height="50" rx="9"/>
+                              <rect x="12" y="50" width="16" height="42" rx="8"/>
+                              <rect x="72" y="50" width="16" height="42" rx="8"/>
+                              <ellipse cx="20" cy="97" rx="8" ry="7"/>
+                              <ellipse cx="80" cy="97" rx="8" ry="7"/>
+                              <rect x="29" y="96" width="18" height="62" rx="9"/>
+                              <rect x="53" y="96" width="18" height="62" rx="9"/>
+                              <ellipse cx="38" cy="162" rx="14" ry="8"/>
+                              <ellipse cx="62" cy="162" rx="14" ry="8"/>
+                            </svg>
+                          )}
+                          {currentPose.key === "spread" && (
+                            <svg viewBox="0 0 220 220" className="w-full h-full" fill="white">
+                              <circle cx="110" cy="20" r="16"/>
+                              <rect x="104" y="35" width="12" height="11" rx="4"/>
+                              <rect x="88" y="46" width="44" height="50" rx="9"/>
+                              <rect x="4" y="52" width="84" height="16" rx="8"/>
+                              <rect x="132" y="52" width="84" height="16" rx="8"/>
+                              <ellipse cx="9" cy="60" rx="8" ry="7"/>
+                              <ellipse cx="211" cy="60" rx="8" ry="7"/>
+                              <rect x="89" y="96" width="18" height="62" rx="9"/>
+                              <rect x="113" y="96" width="18" height="62" rx="9"/>
+                              <ellipse cx="98" cy="162" rx="14" ry="8"/>
+                              <ellipse cx="122" cy="162" rx="14" ry="8"/>
+                            </svg>
+                          )}
+                          {currentPose.key === "side" && (
+                            <svg viewBox="0 0 90 220" className="w-full h-full" fill="white">
+                              <ellipse cx="50" cy="20" rx="14" ry="16"/>
+                              <path d="M 62 20 Q 68 18 66 24" opacity="0.7"/>
+                              <rect x="43" y="35" width="12" height="11" rx="4"/>
+                              <rect x="34" y="46" width="28" height="50" rx="8"/>
+                              <rect x="20" y="52" width="14" height="38" rx="7"/>
+                              <rect x="56" y="52" width="11" height="34" rx="5" opacity="0.4"/>
+                              <ellipse cx="27" cy="95" rx="7" ry="6" opacity="0.6"/>
+                              <rect x="34" y="96" width="16" height="62" rx="8"/>
+                              <rect x="44" y="96" width="14" height="58" rx="7" opacity="0.4"/>
+                              <ellipse cx="38" cy="162" rx="18" ry="8"/>
+                            </svg>
+                          )}
+                        </div>
+                        <div className="absolute bottom-3 left-0 right-0 flex justify-center">
+                          <span className="bg-black/55 text-white/90 text-[11px] px-3 py-1 rounded-full backdrop-blur-sm">
+                            실루엣에 자세를 맞춰보세요
+                          </span>
+                        </div>
+                        <div className="absolute inset-0 rounded-xl" style={{ boxShadow: "inset 0 0 40px rgba(0,0,0,0.3)" }} />
+                      </div>
+                    )}
+                  </div>
+                  <Button className="w-full bg-purple-600 hover:bg-purple-700 text-white gap-2 h-12 text-base" onClick={capturePhoto}>
+                    <Camera className="w-5 h-5" /> 지금 촬영하기
+                  </Button>
+                </div>
+              )}
 
               {/* 이전/다음 */}
               <div className="flex gap-2">
