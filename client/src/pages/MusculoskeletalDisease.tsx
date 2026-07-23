@@ -442,6 +442,7 @@ export default function MusculoskeletalDisease() {
   // 4단계 인라인 플로우 (QR과 동일)
   const [inlineSurveyMode, setInlineSurveyMode] = useState(false);
   const [showDoneInline, setShowDoneInline]       = useState(false);
+  const [donePainHighlight, setDonePainHighlight] = useState(false);
 
   // ── Stage 2: 데이터 관리 상태 ─────────────────────────────────────────
   const [historyId, setHistoryId]         = useState<number | null>(null);
@@ -580,12 +581,17 @@ export default function MusculoskeletalDisease() {
       resetSurveyForm();
       if (inlineSurveyMode) {
         // 인라인 모드: 4단계(완료)로 전환
-        setInlineSurveyMode(false);
+        // ⚠️ setInlineSurveyMode(false) 금지 — false로 바꾸면 surveyAssessmentId !== null && !inlineSurveyMode 조건이
+        //    참이 되어 별도 설문 다이얼로그가 즉시 열리는 버그 발생. resetForm() 호출 시 함께 초기화됨.
+        const hasPain = variables.hasPain === "예";
+        setDonePainHighlight(hasPain);
         setShowDoneInline(true);
-        if (variables.hasPain === "예") {
+        if (hasPain) {
           queryClient.invalidateQueries({ queryKey: ["/api/musculoskeletal-assessments/pending-interview-requests"] });
           setInterviewNotifDismissed(false);
           toast({ title: "면담요청이 접수되었습니다. 부서장에게 알림이 전송됩니다." });
+        } else {
+          toast({ title: "증상조사표가 등록되었습니다." });
         }
       } else {
         // 기존 독립 다이얼로그 동작
@@ -1091,6 +1097,8 @@ export default function MusculoskeletalDisease() {
     setShowChecklist(false);
     setInlineSurveyMode(false);
     setShowDoneInline(false);
+    setDonePainHighlight(false);
+    setSurveyAssessmentId(null);  // 인라인 플로우 완료 후 별도 다이얼로그가 열리지 않도록 초기화
     resetSurveyForm();
   };
 
@@ -1916,7 +1924,7 @@ export default function MusculoskeletalDisease() {
                   {form.department && <span className="font-medium">{form.department}</span>} {form.task && <span>— {form.task}</span>} 조사가 저장되었습니다.
                 </p>
               </div>
-              {surveyForm.hasPain === "예" && (
+              {donePainHighlight && (
                 <div className="w-full rounded-xl border border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-900/20 px-4 py-3 flex items-start gap-3">
                   <AlertTriangle className="w-5 h-5 text-orange-600 dark:text-orange-400 shrink-0 mt-0.5" />
                   <div className="text-left">
