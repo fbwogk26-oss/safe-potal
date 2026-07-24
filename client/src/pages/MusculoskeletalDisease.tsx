@@ -2021,25 +2021,40 @@ export default function MusculoskeletalDisease() {
                 <div className="border-t" />
                 {/* Q4 */}
                 <div className="space-y-2">
-                  <p className="text-sm font-semibold">4. 현재 하는 작업이 얼마나 힘드십니까?</p>
-                  <div className="flex gap-2 flex-wrap">
-                    {WORKLOAD_OPTS.map(opt => (
-                      <button key={opt} type="button"
-                        onClick={() => setSurveyForm(f => ({ ...f, q4Workload: opt }))}
-                        className={`py-1.5 px-3 rounded-lg border text-xs font-medium transition-all ${surveyForm.q4Workload === opt ? "border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300" : "border-border hover:border-purple-300"}`}
-                      >{opt}</button>
+                  <p className="text-sm font-semibold">4. 과거 운동/사고로 부위를 다친 적이 있습니까?</p>
+                  <div className="flex gap-2">
+                    {["아니오","예"].map(v => (
+                      <button key={v} type="button"
+                        onClick={() => setSurveyForm(f => ({ ...f, q4Injury: v, q4Parts: [] }))}
+                        className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-all ${surveyForm.q4Injury === v ? "border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300" : "border-border hover:border-purple-300"}`}
+                      >{v}</button>
                     ))}
                   </div>
+                  {surveyForm.q4Injury === "예" && (
+                    <div className="pl-3 border-l-2 border-purple-300 mt-1">
+                      <div className="grid grid-cols-3 gap-2">
+                        {INJURY_PARTS_HEALTH.map(opt => (
+                          <button key={opt} type="button"
+                            onClick={() => setSurveyForm(f => {
+                              const cur: string[] = f.q4Parts || [];
+                              return { ...f, q4Parts: cur.includes(opt) ? cur.filter((x: string) => x !== opt) : [...cur, opt] };
+                            })}
+                            className={`py-1.5 rounded-lg border text-xs font-medium transition-all ${(surveyForm.q4Parts || []).includes(opt) ? "border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300" : "border-border hover:border-purple-300"}`}
+                          >{opt}</button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="border-t" />
                 {/* Q5 */}
                 <div className="space-y-2">
-                  <p className="text-sm font-semibold">5. 현재 하는 작업 기간</p>
-                  <div className="flex gap-2 flex-wrap">
-                    {WORK_DURATION_OPTS.map(opt => (
+                  <p className="text-sm font-semibold">5. 현재 일의 육체적 부담 정도</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {BURDEN_LEVELS_HEALTH.map(opt => (
                       <button key={opt} type="button"
-                        onClick={() => setSurveyForm(f => ({ ...f, q5WorkDuration: opt }))}
-                        className={`py-1.5 px-3 rounded-lg border text-xs font-medium transition-all ${surveyForm.q5WorkDuration === opt ? "border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300" : "border-border hover:border-purple-300"}`}
+                        onClick={() => setSurveyForm(f => ({ ...f, q5Burden: opt }))}
+                        className={`py-2 px-3 rounded-lg border text-xs font-medium text-left transition-all ${surveyForm.q5Burden === opt ? "border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300" : "border-border hover:border-purple-300"}`}
                       >{opt}</button>
                     ))}
                   </div>
