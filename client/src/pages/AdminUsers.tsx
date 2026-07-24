@@ -45,6 +45,10 @@ import {
   ChevronsDownUp,
   ChevronsUpDown,
   Search,
+  Pencil,
+  Network,
+  ArrowRightLeft,
+  RefreshCw,
 } from "lucide-react";
 import { Link } from "wouter";
 import {
@@ -100,15 +104,36 @@ export default function AdminUsers() {
   const isAdmin = roleData?.role === "admin";
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
   const [presetTab, setPresetTab] = useState<"user" | "manager" | "deptHead">("user");
-  const [mainTab, setMainTab] = useState<"users" | "permissions" | "dormant">("users");
+  const [mainTab, setMainTab] = useState<"users" | "permissions" | "dormant" | "orgchart">("users");
   const [expandedDepts, setExpandedDepts] = useState<Set<string>>(new Set());
   const [allExpanded, setAllExpanded] = useState(false);
   const [userSearch, setUserSearch] = useState("");
   const [resetPwTarget, setResetPwTarget] = useState<UserData | null>(null);
+  // 부서 헤더 인라인 편집
+  const [editingDept, setEditingDept] = useState<string | null>(null);
+  const [editDeptValue, setEditDeptValue] = useState("");
 
   const { data: users, isLoading } = useQuery<UserData[]>({
     queryKey: ["/api/users"],
     enabled: isAdmin,
+  });
+
+  // 부서명 일괄 변경 (모든 관련 테이블 트랜잭션)
+  const renameDeptMutation = useMutation({
+    mutationFn: async ({ oldName, newName }: { oldName: string; newName: string }) => {
+      return apiRequest("PUT", "/api/departments/rename", { oldName, newName });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/departments"] });
+      setEditingDept(null);
+      toast({ title: "부서명이 변경되었습니다" });
+    },
+    onError: (error: any) => {
+      let msg = "부서명 변경에 실패했습니다";
+      try { const p = JSON.parse((error.message || "").replace(/^\d+:\s*/, "")); msg = p.message || msg; } catch {}
+      toast({ variant: "destructive", title: msg });
+    },
   });
 
   const { data: presets } = useQuery<RolePresets>({
@@ -357,7 +382,7 @@ export default function AdminUsers() {
         </div>
       </div>
 
-      <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as "users" | "permissions" | "dormant")}>
+      <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as "users" | "permissions" | "dormant" | "orgchart")}>
         <TabsList className="mb-4">
           <TabsTrigger value="users" className="gap-2" data-testid="tab-users">
             <Users className="w-4 h-4" />
@@ -366,6 +391,10 @@ export default function AdminUsers() {
           <TabsTrigger value="dormant" className="gap-2" data-testid="tab-dormant">
             <Clock className="w-4 h-4" />
             휴면/퇴사 계정
+          </TabsTrigger>
+          <TabsTrigger value="orgchart" className="gap-2" data-testid="tab-orgchart">
+            <Network className="w-4 h-4" />
+            조직도 관리
           </TabsTrigger>
           <TabsTrigger value="permissions" className="gap-2" data-testid="tab-permissions">
             <ShieldCheck className="w-4 h-4" />
@@ -418,20 +447,66 @@ export default function AdminUsers() {
                 return (
                   <div key={dept} className="rounded-xl border bg-card overflow-hidden">
                     {/* 부서 헤더 */}
-                    <button
-                      onClick={() => toggleDept(dept)}
-                      className="w-full flex items-center gap-2.5 px-4 py-2.5 hover:bg-muted/50 transition-colors text-left"
-                    >
-                      <div className={`flex items-center justify-center w-6 h-6 rounded-md shrink-0 ${isUnassigned ? "bg-muted" : "bg-blue-100 dark:bg-blue-900/40"}`}>
-                        {isOpen
-                          ? <FolderOpen className={`w-3.5 h-3.5 ${isUnassigned ? "text-muted-foreground" : "text-blue-600 dark:text-blue-400"}`} />
-                          : <Folder className={`w-3.5 h-3.5 ${isUnassigned ? "text-muted-foreground" : "text-blue-600 dark:text-blue-400"}`} />
-                        }
+                    {editingDept === dept ? (
+                      /* 인라인 이름 편집 모드 */
+                      <div className="flex items-center gap-2 px-3 py-2">
+                        <div className="flex items-center justify-center w-6 h-6 rounded-md shrink-0 bg-blue-100 dark:bg-blue-900/40">
+                          <FolderOpen className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                        </div>
+                        <input
+                          autoFocus
+                          value={editDeptValue}
+                          onChange={e => setEditDeptValue(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === "Enter" && editDeptValue.trim()) {
+                              renameDeptMutation.mutate({ oldName: editingDept!, newName: editDeptValue.trim() });
+                            }
+                            if (e.key === "Escape") setEditingDept(null);
+                          }}
+                          className="flex-1 h-8 px-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-ring bg-background"
+                          placeholder="새 부서명 입력..."
+                        />
+                        <Button
+                          type="button" size="sm" variant="default" className="h-7 px-2 gap-1"
+                          onClick={() => editDeptValue.trim() && renameDeptMutation.mutate({ oldName: editingDept!, newName: editDeptValue.trim() })}
+                          disabled={renameDeptMutation.isPending || !editDeptValue.trim()}
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button type="button" size="sm" variant="ghost" className="h-7 px-2"
+                          onClick={() => setEditingDept(null)} disabled={renameDeptMutation.isPending}>
+                          <X className="w-3.5 h-3.5" />
+                        </Button>
                       </div>
-                      <span className={`font-semibold text-sm flex-1 ${isUnassigned ? "text-muted-foreground italic" : ""}`}>{dept}</span>
-                      <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full shrink-0">{deptUsers.length}명</span>
-                      <ChevronRight className={`w-3.5 h-3.5 text-muted-foreground transition-transform shrink-0 ${isOpen ? "rotate-90" : ""}`} />
-                    </button>
+                    ) : (
+                      /* 일반 모드: 아코디언 + 연필 버튼 */
+                      <div className="flex items-center group">
+                        <button
+                          onClick={() => toggleDept(dept)}
+                          className="flex-1 flex items-center gap-2.5 px-4 py-2.5 hover:bg-muted/50 transition-colors text-left"
+                        >
+                          <div className={`flex items-center justify-center w-6 h-6 rounded-md shrink-0 ${isUnassigned ? "bg-muted" : "bg-blue-100 dark:bg-blue-900/40"}`}>
+                            {isOpen
+                              ? <FolderOpen className={`w-3.5 h-3.5 ${isUnassigned ? "text-muted-foreground" : "text-blue-600 dark:text-blue-400"}`} />
+                              : <Folder className={`w-3.5 h-3.5 ${isUnassigned ? "text-muted-foreground" : "text-blue-600 dark:text-blue-400"}`} />
+                            }
+                          </div>
+                          <span className={`font-semibold text-sm flex-1 ${isUnassigned ? "text-muted-foreground italic" : ""}`}>{dept}</span>
+                          <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full shrink-0">{deptUsers.length}명</span>
+                          <ChevronRight className={`w-3.5 h-3.5 text-muted-foreground transition-transform shrink-0 ${isOpen ? "rotate-90" : ""}`} />
+                        </button>
+                        {!isUnassigned && (
+                          <button
+                            type="button"
+                            title="부서명 수정"
+                            onClick={() => { setEditingDept(dept); setEditDeptValue(dept); }}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity mr-2 h-7 w-7 flex items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-foreground shrink-0"
+                          >
+                            <Pencil className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                    )}
 
                     {/* 부서 소속 사용자 목록 */}
                     {isOpen && (
@@ -736,6 +811,10 @@ export default function AdminUsers() {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        <TabsContent value="orgchart">
+          <OrgChartTab />
         </TabsContent>
 
         <TabsContent value="permissions">
@@ -1454,5 +1533,370 @@ function ResetPasswordDialog({ user, open, onClose }: { user: UserData | null; o
         </>)}
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ===========================================================
+// 조직도 관리 탭
+// ===========================================================
+interface DeptInfo { name: string; count: number; }
+
+function OrgChartTab() {
+  const { toast } = useToast();
+
+  // 부서 목록
+  const { data: depts, isLoading, refetch } = useQuery<DeptInfo[]>({
+    queryKey: ["/api/departments"],
+    staleTime: 0,
+  });
+
+  // 전체 사용자 (이동 대상 드롭다운에서 모든 부서 표시)
+  const { data: allUsers } = useQuery<UserData[]>({ queryKey: ["/api/users"] });
+  const allDeptNames = Array.from(new Set((allUsers || []).filter(u => !u.resignedAt && u.department).map(u => u.department!)));
+
+  // 인라인 편집 상태
+  const [editingName, setEditingName] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
+
+  // 삭제/이전 다이얼로그 상태
+  const [deleteTarget, setDeleteTarget] = useState<DeptInfo | null>(null);
+  const [moveTo, setMoveTo] = useState("");
+
+  // 일괄 이동 다이얼로그 상태
+  const [moveDialog, setMoveDialog] = useState<{ source: string; count: number } | null>(null);
+  const [moveTarget, setMoveTarget] = useState("");
+
+  // 새 부서 추가 상태
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newDeptName, setNewDeptName] = useState("");
+
+  // 이름 변경 뮤테이션
+  const renameMutation = useMutation({
+    mutationFn: async ({ oldName, newName }: { oldName: string; newName: string }) => {
+      return apiRequest("PUT", "/api/departments/rename", { oldName, newName });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/departments"] });
+      setEditingName(null);
+      toast({ title: "부서명이 변경되었습니다" });
+    },
+    onError: (error: any) => {
+      let msg = "부서명 변경에 실패했습니다";
+      try { const p = JSON.parse((error.message || "").replace(/^\d+:\s*/, "")); msg = p.message || msg; } catch {}
+      toast({ variant: "destructive", title: msg });
+    },
+  });
+
+  // 삭제/이전 뮤테이션
+  const deleteMutation = useMutation({
+    mutationFn: async ({ name, moveTo }: { name: string; moveTo?: string }) => {
+      return apiRequest("DELETE", "/api/departments", { name, moveTo });
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/departments"] });
+      setDeleteTarget(null);
+      setMoveTo("");
+      toast({ title: vars.moveTo ? "이전 및 삭제가 완료됐습니다" : "부서가 삭제됐습니다" });
+    },
+    onError: (error: any) => {
+      let msg = "부서 삭제에 실패했습니다";
+      try { const p = JSON.parse((error.message || "").replace(/^\d+:\s*/, "")); msg = p.message || msg; } catch {}
+      toast({ variant: "destructive", title: msg });
+    },
+  });
+
+  // 일괄 이동 (source → target, source 부서 삭제)
+  const moveMutation = useMutation({
+    mutationFn: async ({ source, target }: { source: string; target: string }) => {
+      return apiRequest("DELETE", "/api/departments", { name: source, moveTo: target });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/departments"] });
+      setMoveDialog(null);
+      setMoveTarget("");
+      toast({ title: "일괄 이동이 완료됐습니다" });
+    },
+    onError: (error: any) => {
+      let msg = "이동에 실패했습니다";
+      try { const p = JSON.parse((error.message || "").replace(/^\d+:\s*/, "")); msg = p.message || msg; } catch {}
+      toast({ variant: "destructive", title: msg });
+    },
+  });
+
+  const confirmRename = () => {
+    if (editingName && editValue.trim() && editValue.trim() !== editingName) {
+      renameMutation.mutate({ oldName: editingName, newName: editValue.trim() });
+    } else {
+      setEditingName(null);
+    }
+  };
+
+  const handleDelete = () => {
+    if (!deleteTarget) return;
+    if (deleteTarget.count > 0 && !moveTo) {
+      toast({ variant: "destructive", title: "이전 부서를 선택해주세요" });
+      return;
+    }
+    deleteMutation.mutate({ name: deleteTarget.name, moveTo: moveTo || undefined });
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* 헤더 */}
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2">
+          <div className="w-9 h-9 rounded-lg bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center">
+            <Network className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+          </div>
+          <div>
+            <h2 className="text-base font-semibold">조직도 관리</h2>
+            <p className="text-xs text-muted-foreground">부서명 변경, 인원 이동, 부서 삭제를 일괄 처리합니다</p>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => refetch()} disabled={isLoading}>
+            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? "animate-spin" : ""}`} />
+            새로고침
+          </Button>
+          <Button size="sm" className="gap-1.5" onClick={() => { setShowAddForm(true); setNewDeptName(""); }}>
+            <FolderOpen className="w-3.5 h-3.5" />
+            새 부서 추가
+          </Button>
+        </div>
+      </div>
+
+      {/* 새 부서 추가 폼 */}
+      {showAddForm && (
+        <Card className="border-dashed border-blue-300 dark:border-blue-700">
+          <CardContent className="py-4">
+            <p className="text-xs text-muted-foreground mb-3 flex items-center gap-1">
+              <Network className="w-3 h-3" />
+              새 부서명을 입력한 뒤, 기존 부서의 "일괄 이동" 으로 인원을 배정할 수 있습니다.
+            </p>
+            <div className="flex gap-2">
+              <input
+                autoFocus
+                value={newDeptName}
+                onChange={e => setNewDeptName(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === "Escape") { setShowAddForm(false); setNewDeptName(""); }
+                  if (e.key === "Enter" && newDeptName.trim()) {
+                    // 새 부서는 기존 부서 이름 변경으로 구현 (빈 부서는 별도 저장 불필요)
+                    // 사용자에게 안내만 제공
+                    toast({ title: `"${newDeptName.trim()}" 부서가 등록 준비됐습니다`, description: "이제 기존 부서에서 일괄 이동으로 인원을 배정하세요." });
+                    setShowAddForm(false);
+                    setNewDeptName("");
+                  }
+                }}
+                className="flex-1 h-9 px-3 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-ring bg-background"
+                placeholder="새 부서명 (예: 신규팀)"
+              />
+              <Button size="sm" className="gap-1"
+                onClick={() => {
+                  if (!newDeptName.trim()) return;
+                  toast({ title: `"${newDeptName.trim()}" 부서가 등록 준비됐습니다`, description: "이제 기존 부서에서 일괄 이동으로 인원을 배정하세요." });
+                  setShowAddForm(false);
+                  setNewDeptName("");
+                }}>
+                <Check className="w-3.5 h-3.5" />확인
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => { setShowAddForm(false); setNewDeptName(""); }}>
+                <X className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 부서 목록 */}
+      {isLoading ? (
+        <div className="py-12 text-center text-muted-foreground text-sm">로딩 중...</div>
+      ) : !depts?.length ? (
+        <div className="py-12 text-center text-muted-foreground text-sm">
+          <Network className="w-8 h-8 mx-auto mb-2 opacity-30" />
+          등록된 부서가 없습니다
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          {depts.map((dept) => (
+            <Card key={dept.name} className="overflow-hidden">
+              <div className="flex items-center gap-3 px-4 py-3 group">
+                {/* 아이콘 */}
+                <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/40 shrink-0">
+                  <Folder className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                </div>
+
+                {/* 이름 (인라인 편집 모드) */}
+                {editingName === dept.name ? (
+                  <div className="flex-1 flex items-center gap-2 min-w-0">
+                    <input
+                      autoFocus
+                      value={editValue}
+                      onChange={e => setEditValue(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === "Enter") confirmRename();
+                        if (e.key === "Escape") setEditingName(null);
+                      }}
+                      className="flex-1 h-8 px-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-ring bg-background min-w-0"
+                    />
+                    <Button type="button" size="sm" variant="default" className="h-7 px-2 shrink-0"
+                      onClick={confirmRename} disabled={renameMutation.isPending}>
+                      <Check className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button type="button" size="sm" variant="ghost" className="h-7 px-2 shrink-0"
+                      onClick={() => setEditingName(null)} disabled={renameMutation.isPending}>
+                      <X className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm truncate">{dept.name}</p>
+                    <p className="text-xs text-muted-foreground">{dept.count}명 소속</p>
+                  </div>
+                )}
+
+                {/* 액션 버튼 (편집 중이 아닐 때만 표시) */}
+                {editingName !== dept.name && (
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {/* 이름 변경 */}
+                    <Button variant="outline" size="sm" className="h-7 px-2 gap-1 text-xs"
+                      onClick={() => { setEditingName(dept.name); setEditValue(dept.name); }}
+                      title="부서명 변경">
+                      <Pencil className="w-3 h-3" />
+                      이름변경
+                    </Button>
+                    {/* 일괄 이동 */}
+                    <Button variant="outline" size="sm" className="h-7 px-2 gap-1 text-xs"
+                      onClick={() => { setMoveDialog({ source: dept.name, count: dept.count }); setMoveTarget(""); }}
+                      title="인원 일괄 이동"
+                      disabled={dept.count === 0}>
+                      <ArrowRightLeft className="w-3 h-3" />
+                      일괄이동
+                    </Button>
+                    {/* 삭제 */}
+                    <Button variant="outline" size="sm"
+                      className="h-7 px-2 gap-1 text-xs text-destructive border-destructive/30 hover:bg-destructive/10"
+                      onClick={() => { setDeleteTarget(dept); setMoveTo(""); }}
+                      title="부서 삭제">
+                      <Trash2 className="w-3 h-3" />
+                      삭제
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* 부서 삭제 다이얼로그 */}
+      <Dialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) { setDeleteTarget(null); setMoveTo(""); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Trash2 className="w-4 h-4 text-destructive" />
+              부서 삭제
+            </DialogTitle>
+            <DialogDescription>
+              {deleteTarget && deleteTarget.count > 0 ? (
+                <>
+                  <span className="font-semibold text-foreground">"{deleteTarget.name}"</span> 부서에{" "}
+                  <span className="font-semibold text-destructive">{deleteTarget.count}명</span>이 소속돼 있습니다.
+                  삭제 전 이전 부서를 선택해주세요.
+                </>
+              ) : (
+                <>
+                  <span className="font-semibold text-foreground">"{deleteTarget?.name}"</span> 부서를 삭제합니다. 이 작업은 되돌릴 수 없습니다.
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          {deleteTarget && deleteTarget.count > 0 && (
+            <div className="space-y-2 mt-2">
+              <label className="text-sm font-medium">이전 부서 선택</label>
+              <select
+                value={moveTo}
+                onChange={e => setMoveTo(e.target.value)}
+                className="w-full h-9 px-3 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-ring bg-background"
+              >
+                <option value="">-- 부서 선택 --</option>
+                {(depts || []).filter(d => d.name !== deleteTarget.name).map(d => (
+                  <option key={d.name} value={d.name}>{d.name} ({d.count}명)</option>
+                ))}
+              </select>
+            </div>
+          )}
+          <DialogFooter className="gap-2 mt-2">
+            <Button variant="outline" size="sm" onClick={() => { setDeleteTarget(null); setMoveTo(""); }}
+              disabled={deleteMutation.isPending}>
+              취소
+            </Button>
+            <Button variant="destructive" size="sm"
+              onClick={handleDelete}
+              disabled={deleteMutation.isPending || (!!deleteTarget && deleteTarget.count > 0 && !moveTo)}>
+              {deleteMutation.isPending ? "처리 중..." : deleteTarget?.count && deleteTarget.count > 0 ? "이전 후 삭제" : "삭제"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 일괄 이동 다이얼로그 */}
+      <Dialog open={!!moveDialog} onOpenChange={(o) => { if (!o) { setMoveDialog(null); setMoveTarget(""); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ArrowRightLeft className="w-4 h-4 text-blue-600" />
+              인원 일괄 이동
+            </DialogTitle>
+            <DialogDescription>
+              {moveDialog && (
+                <>
+                  <span className="font-semibold text-foreground">"{moveDialog.source}"</span> 부서{" "}
+                  <span className="font-semibold text-primary">{moveDialog.count}명</span> 전원을
+                  다른 부서로 이동합니다.
+                  <br />
+                  <span className="text-amber-600 text-xs">※ 이동 후 원래 부서는 자동으로 삭제됩니다.</span>
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 mt-2">
+            <label className="text-sm font-medium">이동 대상 부서</label>
+            <select
+              value={moveTarget}
+              onChange={e => setMoveTarget(e.target.value)}
+              className="w-full h-9 px-3 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-ring bg-background"
+            >
+              <option value="">-- 부서 선택 --</option>
+              {(depts || []).filter(d => d.name !== moveDialog?.source).map(d => (
+                <option key={d.name} value={d.name}>{d.name} ({d.count}명)</option>
+              ))}
+              {/* 새 부서 이름을 직접 입력하려면 텍스트 입력 옵션 표시 */}
+            </select>
+            <p className="text-xs text-muted-foreground">목록에 없으면 직접 입력도 가능합니다:</p>
+            <input
+              value={moveTarget}
+              onChange={e => setMoveTarget(e.target.value)}
+              className="w-full h-9 px-3 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-ring bg-background"
+              placeholder="부서명 직접 입력..."
+            />
+          </div>
+          <DialogFooter className="gap-2 mt-2">
+            <Button variant="outline" size="sm" onClick={() => { setMoveDialog(null); setMoveTarget(""); }}
+              disabled={moveMutation.isPending}>
+              취소
+            </Button>
+            <Button size="sm"
+              onClick={() => moveDialog && moveTarget.trim() && moveMutation.mutate({ source: moveDialog.source, target: moveTarget.trim() })}
+              disabled={moveMutation.isPending || !moveTarget.trim()}>
+              {moveMutation.isPending ? "이동 중..." : "일괄 이동"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }

@@ -854,6 +854,93 @@ export async function registerRoutes(
     }
   });
 
+  // === 부서 관리 ===
+
+  // GET /api/departments — 고유 부서 목록 + 인원 수 (비퇴사자 기준)
+  app.get("/api/departments", requireAdmin, async (req: any, res) => {
+    try {
+      const result = await db.execute(
+        sql`SELECT department AS name, COUNT(*) AS count
+            FROM users
+            WHERE department IS NOT NULL AND department != '' AND resigned_at IS NULL
+            GROUP BY department
+            ORDER BY department`
+      );
+      res.json((result.rows as any[]).map(r => ({ name: r.name, count: Number(r.count) })));
+    } catch (error) {
+      res.status(500).json({ message: "부서 목록 조회에 실패했습니다" });
+    }
+  });
+
+  // PUT /api/departments/rename — 부서명 변경 (관련 테이블 전체 트랜잭션)
+  app.put("/api/departments/rename", requireAdmin, async (req: any, res) => {
+    try {
+      const { oldName, newName } = req.body;
+      if (!oldName?.trim() || !newName?.trim()) {
+        return res.status(400).json({ message: "부서명을 입력해주세요" });
+      }
+      const o = oldName.trim(), n = newName.trim();
+      if (o === n) return res.status(400).json({ message: "같은 이름입니다" });
+      await db.transaction(async (tx) => {
+        await tx.execute(sql`UPDATE users SET department = ${n} WHERE department = ${o}`);
+        await tx.execute(sql`UPDATE teams SET name = ${n} WHERE name = ${o}`);
+        await tx.execute(sql`UPDATE education_sessions SET department = ${n} WHERE department = ${o}`);
+        await tx.execute(sql`UPDATE musculoskeletal_assessments SET department = ${n} WHERE department = ${o}`);
+        await tx.execute(sql`UPDATE risk_assessments SET department = ${n} WHERE department = ${o}`);
+        await tx.execute(sql`UPDATE accident_reports SET department = ${n} WHERE department = ${o}`);
+        await tx.execute(sql`UPDATE new_equipment_requests SET department = ${n} WHERE department = ${o}`);
+        await tx.execute(sql`UPDATE education_tasks SET department = ${n} WHERE department = ${o}`);
+        await tx.execute(sql`UPDATE traffic_fines SET department = ${n} WHERE department = ${o}`);
+        await tx.execute(sql`UPDATE online_edu_records SET department = ${n} WHERE department = ${o}`);
+        await tx.execute(sql`UPDATE drill_assignments SET department = ${n} WHERE department = ${o}`);
+      });
+      await logSecurityEvent("DEPT_RENAMED", req, `부서명 변경: "${o}" → "${n}"`, true, req.user?.id, req.user?.username);
+      res.json({ message: "부서명이 변경되었습니다" });
+    } catch (error) {
+      console.error("Dept rename error:", error);
+      res.status(500).json({ message: "부서명 변경에 실패했습니다" });
+    }
+  });
+
+  // DELETE /api/departments — 부서 삭제 (인원 있으면 moveTo 필수)
+  app.delete("/api/departments", requireAdmin, async (req: any, res) => {
+    try {
+      const { name, moveTo } = req.body;
+      if (!name?.trim()) return res.status(400).json({ message: "부서명이 필요합니다" });
+      const deptName = name.trim();
+      if (moveTo?.trim()) {
+        const target = moveTo.trim();
+        await db.transaction(async (tx) => {
+          await tx.execute(sql`UPDATE users SET department = ${target} WHERE department = ${deptName}`);
+          await tx.execute(sql`UPDATE education_sessions SET department = ${target} WHERE department = ${deptName}`);
+          await tx.execute(sql`UPDATE musculoskeletal_assessments SET department = ${target} WHERE department = ${deptName}`);
+          await tx.execute(sql`UPDATE risk_assessments SET department = ${target} WHERE department = ${deptName}`);
+          await tx.execute(sql`UPDATE accident_reports SET department = ${target} WHERE department = ${deptName}`);
+          await tx.execute(sql`UPDATE new_equipment_requests SET department = ${target} WHERE department = ${deptName}`);
+          await tx.execute(sql`UPDATE education_tasks SET department = ${target} WHERE department = ${deptName}`);
+          await tx.execute(sql`UPDATE traffic_fines SET department = ${target} WHERE department = ${deptName}`);
+          await tx.execute(sql`UPDATE online_edu_records SET department = ${target} WHERE department = ${deptName}`);
+          await tx.execute(sql`UPDATE drill_assignments SET department = ${target} WHERE department = ${deptName}`);
+        });
+        await logSecurityEvent("DEPT_MERGED", req, `부서 이전 삭제: "${deptName}" → "${target}"`, true, req.user?.id, req.user?.username);
+        res.json({ message: "이전 및 삭제가 완료됐습니다" });
+      } else {
+        const result = await db.execute(
+          sql`SELECT COUNT(*) AS cnt FROM users WHERE department = ${deptName} AND resigned_at IS NULL`
+        );
+        const cnt = Number((result.rows[0] as any).cnt);
+        if (cnt > 0) {
+          return res.status(400).json({ message: `소속 인원 ${cnt}명이 있습니다. 이전 부서를 선택해주세요.` });
+        }
+        await logSecurityEvent("DEPT_DELETED", req, `빈 부서 삭제: "${deptName}"`, true, req.user?.id, req.user?.username);
+        res.json({ message: "삭제됐습니다" });
+      }
+    } catch (error) {
+      console.error("Dept delete error:", error);
+      res.status(500).json({ message: "부서 삭제에 실패했습니다" });
+    }
+  });
+
   // === TEAMS ===
   app.get(api.teams.list.path, isAuthenticated, async (req: any, res) => {
     const year = req.query.year ? Number(req.query.year) : 2025;
