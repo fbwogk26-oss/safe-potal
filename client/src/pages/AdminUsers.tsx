@@ -1298,17 +1298,33 @@ function ResetPasswordDialog({ user }: { user: UserData }) {
       setResetSuccess(newPassword);
     },
     onError: (error: any) => {
-      toast({ variant: "destructive", title: "비밀번호 초기화 실패", description: error.message || "오류가 발생했습니다." });
+      // throwIfResNotOk가 "400: {"message":"..."}" 형태로 throw하므로 파싱
+      let description = "오류가 발생했습니다.";
+      try {
+        const raw = error.message || "";
+        const jsonPart = raw.replace(/^\d+:\s*/, "");
+        const parsed = JSON.parse(jsonPart);
+        description = parsed.message || description;
+      } catch {
+        description = error.message || description;
+      }
+      toast({ variant: "destructive", title: "비밀번호 초기화 실패", description });
     },
   });
 
+  const validatePassword = (pw: string): string | null => {
+    if (!pw) return "새 비밀번호를 입력해주세요";
+    if (pw.length < 8) return "비밀번호는 8자 이상이어야 합니다";
+    if (!/[A-Za-z]/.test(pw)) return "영문자가 포함되어야 합니다";
+    if (!/[0-9]/.test(pw)) return "숫자가 포함되어야 합니다";
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pw)) return "특수문자가 포함되어야 합니다";
+    return null;
+  };
+
   const handleReset = () => {
-    if (!newPassword) {
-      toast({ variant: "destructive", title: "새 비밀번호를 입력해주세요" });
-      return;
-    }
-    if (newPassword.length < 4) {
-      toast({ variant: "destructive", title: "비밀번호는 4자 이상이어야 합니다" });
+    const err = validatePassword(newPassword);
+    if (err) {
+      toast({ variant: "destructive", title: err });
       return;
     }
     resetMutation.mutate({ userId: user.id, newPassword });
@@ -1377,7 +1393,8 @@ function ResetPasswordDialog({ user }: { user: UserData }) {
                   type={showPassword ? "text" : "password"}
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="새 비밀번호 (4자 이상)"
+                  onKeyDown={(e) => { if (e.key === "Enter") handleReset(); }}
+                  placeholder="새 비밀번호"
                   className="pr-10"
                   data-testid="input-reset-password"
                 />
@@ -1391,7 +1408,20 @@ function ResetPasswordDialog({ user }: { user: UserData }) {
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">
+              {/* 비밀번호 강도 요건 표시 */}
+              <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
+                {[
+                  { label: "8자 이상", ok: newPassword.length >= 8 },
+                  { label: "영문 포함", ok: /[A-Za-z]/.test(newPassword) },
+                  { label: "숫자 포함", ok: /[0-9]/.test(newPassword) },
+                  { label: "특수문자 포함", ok: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(newPassword) },
+                ].map(({ label, ok }) => (
+                  <p key={label} className={`text-xs flex items-center gap-1 ${ok ? "text-green-600 dark:text-green-400" : "text-muted-foreground"}`}>
+                    <span>{ok ? "✓" : "○"}</span> {label}
+                  </p>
+                ))}
+              </div>
+              <p className="text-xs text-amber-600 dark:text-amber-400">
                 사용자는 다음 로그인 시 비밀번호를 변경해야 합니다
               </p>
             </div>
