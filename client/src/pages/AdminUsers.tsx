@@ -110,10 +110,41 @@ export default function AdminUsers() {
   // 부서 헤더 인라인 편집
   const [editingDept, setEditingDept] = useState<string | null>(null);
   const [editDeptValue, setEditDeptValue] = useState("");
+  // 직원별 부서 변경 인라인 드롭다운
+  const [changingDeptUserId, setChangingDeptUserId] = useState<string | null>(null);
 
   const { data: users, isLoading } = useQuery<UserData[]>({
     queryKey: ["/api/users"],
     enabled: isAdmin,
+  });
+
+  const { data: departments } = useQuery<{ name: string; count: number }[]>({
+    queryKey: ["/api/departments"],
+    enabled: isAdmin,
+  });
+
+  // 직원 개별 부서 변경
+  const updateDepartmentMutation = useMutation({
+    mutationFn: async ({ userId, department }: { userId: string; department: string | null }) => {
+      return apiRequest("PUT", `/api/users/${userId}`, { department });
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/departments"] });
+      // 이동한 부서 아코디언 자동 열기
+      if (variables.department) {
+        setExpandedDepts(prev => {
+          const next = new Set(prev);
+          next.add(variables.department!);
+          return next;
+        });
+      }
+      setChangingDeptUserId(null);
+      toast({ title: "부서가 변경되었습니다." });
+    },
+    onError: () => {
+      toast({ variant: "destructive", title: "부서 변경에 실패했습니다." });
+    },
   });
 
   // 부서명 일괄 변경 (모든 관련 테이블 트랜잭션)
@@ -708,6 +739,36 @@ export default function AdminUsers() {
                                 {/* 액션 버튼들 */}
                                 {!isCurrentUser && (
                                   <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end">
+                                    {/* 부서 인라인 변경 */}
+                                    <Select
+                                      value={user.department ?? "__none__"}
+                                      onValueChange={(val) => {
+                                        const newDept = val === "__none__" ? null : val;
+                                        setChangingDeptUserId(user.id);
+                                        updateDepartmentMutation.mutate({ userId: user.id, department: newDept });
+                                      }}
+                                      disabled={updateDepartmentMutation.isPending && changingDeptUserId === user.id}
+                                    >
+                                      <SelectTrigger
+                                        className="w-[110px] h-7 text-xs"
+                                        data-testid={`select-dept-${user.id}`}
+                                        title="부서 변경"
+                                      >
+                                        <Building2 className="w-3 h-3 text-muted-foreground shrink-0 mr-1" />
+                                        <SelectValue placeholder="미지정" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="__none__">
+                                          <span className="text-muted-foreground italic">부서 미지정</span>
+                                        </SelectItem>
+                                        {Array.from(new Set([
+                                          ...(departments?.map(d => d.name) ?? []),
+                                          ...(deptGroups.map(([d]) => d).filter(d => d !== "(부서 미지정)")),
+                                        ])).sort((a, b) => a.localeCompare(b, "ko")).map(deptName => (
+                                          <SelectItem key={deptName} value={deptName}>{deptName}</SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
                                     <Select
                                       value={user.role}
                                       onValueChange={(newRole) => updateRoleMutation.mutate({ userId: user.id, role: newRole })}
