@@ -104,6 +104,7 @@ export default function AdminUsers() {
   const [expandedDepts, setExpandedDepts] = useState<Set<string>>(new Set());
   const [allExpanded, setAllExpanded] = useState(false);
   const [userSearch, setUserSearch] = useState("");
+  const [resetPwTarget, setResetPwTarget] = useState<UserData | null>(null);
 
   const { data: users, isLoading } = useQuery<UserData[]>({
     queryKey: ["/api/users"],
@@ -329,6 +330,12 @@ export default function AdminUsers() {
 
   return (
     <div className="container mx-auto px-4 py-6 max-w-4xl">
+      {/* ─── 비밀번호 초기화 다이얼로그 (목록 외부 — 아코디언 언마운트 영향 없음) ─── */}
+      <ResetPasswordDialog
+        user={resetPwTarget}
+        open={resetPwTarget !== null}
+        onClose={() => setResetPwTarget(null)}
+      />
       <div className="mb-6">
         <Link href="/">
           <Button variant="ghost" size="sm" className="gap-2 mb-4" data-testid="button-back">
@@ -495,7 +502,13 @@ export default function AdminUsers() {
                                         {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                                       </Button>
                                     )}
-                                    <ResetPasswordDialog user={user} />
+                                    <Button
+                                      variant="outline" size="icon" className="h-8 w-8" title="비밀번호 초기화"
+                                      data-testid={`button-reset-pw-${user.id}`}
+                                      onClick={() => setResetPwTarget(user)}
+                                    >
+                                      <KeyRound className="w-3.5 h-3.5" />
+                                    </Button>
                                     {!isUserAdmin && (
                                       <div className="flex items-center gap-1 h-7 px-1.5 rounded-md border">
                                         <Switch
@@ -1283,8 +1296,7 @@ function CreateUserDialog() {
   );
 }
 
-function ResetPasswordDialog({ user }: { user: UserData }) {
-  const [open, setOpen] = useState(false);
+function ResetPasswordDialog({ user, open, onClose }: { user: UserData | null; open: boolean; onClose: () => void }) {
   const [newPassword, setNewPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [resetSuccess, setResetSuccess] = useState<string | null>(null);
@@ -1322,6 +1334,7 @@ function ResetPasswordDialog({ user }: { user: UserData }) {
   };
 
   const handleReset = () => {
+    if (!user) return;
     const err = validatePassword(newPassword);
     if (err) {
       toast({ variant: "destructive", title: err });
@@ -1331,25 +1344,22 @@ function ResetPasswordDialog({ user }: { user: UserData }) {
   };
 
   const handleCopy = () => {
-    if (!resetSuccess) return;
+    if (!resetSuccess || !user) return;
     navigator.clipboard.writeText(`아이디: ${user.username}\n초기화된 비밀번호: ${resetSuccess}`);
     toast({ title: "복사되었습니다" });
   };
 
   const handleClose = () => {
-    setOpen(false);
     setNewPassword("");
     setShowPassword(false);
     setResetSuccess(null);
+    onClose();
   };
 
+  if (!user) return null;
+
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) handleClose(); else setOpen(true); }}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="icon" className="h-8 w-8" title="비밀번호 초기화" data-testid={`button-reset-pw-${user.id}`}>
-          <KeyRound className="w-3.5 h-3.5" />
-        </Button>
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={(o) => { if (!o) handleClose(); }}>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
