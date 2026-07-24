@@ -334,7 +334,10 @@ export default function AdminUsers() {
       <ResetPasswordDialog
         user={resetPwTarget}
         open={resetPwTarget !== null}
-        onClose={() => setResetPwTarget(null)}
+        onClose={() => {
+          setResetPwTarget(null);
+          setUserSearch("");  // 다이얼로그 닫힘 시 검색 필터 초기화 → 전체 목록 복원
+        }}
       />
       <div className="mb-6">
         <Link href="/">
