@@ -648,7 +648,7 @@ export default function AdminUsers() {
                       <div className="flex items-center group">
                         <button
                           onClick={() => toggleDept(dept)}
-                          className="flex-1 flex items-center gap-2.5 px-4 py-2.5 hover:bg-muted/50 transition-colors text-left"
+                          className="flex-1 flex items-center gap-2 px-3 py-1.5 hover:bg-muted/50 transition-colors text-left"
                         >
                           <div className={`flex items-center justify-center w-6 h-6 rounded-md shrink-0 ${isUnassigned ? "bg-muted" : "bg-blue-100 dark:bg-blue-900/40"}`}>
                             {isOpen
@@ -701,11 +701,11 @@ export default function AdminUsers() {
                           const userPerms = user.permissions || DEFAULT_PERMISSIONS;
                           return (
                             <div key={user.id} className="bg-background" data-testid={`user-row-${user.id}`}>
-                              <div className="flex items-center gap-3 px-4 py-2.5 pl-12">
+                              <div className="flex items-center gap-2 px-3 py-1.5 pl-10">
                                 {/* 트리 연결선 */}
                                 <div className="absolute left-6 w-5 h-px bg-border" />
-                                <Avatar className="h-8 w-8 shrink-0">
-                                  <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+                                <Avatar className="h-7 w-7 shrink-0">
+                                  <AvatarFallback className="bg-primary/10 text-primary text-[10px] font-semibold">
                                     {(user.name?.[0] || user.username?.[0] || "U").toUpperCase()}
                                   </AvatarFallback>
                                 </Avatar>
@@ -750,7 +750,7 @@ export default function AdminUsers() {
                                       disabled={updateDepartmentMutation.isPending && changingDeptUserId === user.id}
                                     >
                                       <SelectTrigger
-                                        className="w-[110px] h-7 text-xs"
+                                        className="w-[100px] h-6 text-[11px]"
                                         data-testid={`select-dept-${user.id}`}
                                         title="부서 변경"
                                       >
@@ -774,7 +774,7 @@ export default function AdminUsers() {
                                       onValueChange={(newRole) => updateRoleMutation.mutate({ userId: user.id, role: newRole })}
                                       disabled={updateRoleMutation.isPending}
                                     >
-                                      <SelectTrigger className="w-[90px] h-7 text-xs" data-testid={`select-role-${user.id}`}>
+                                      <SelectTrigger className="w-[80px] h-6 text-[11px]" data-testid={`select-role-${user.id}`}>
                                         <SelectValue />
                                       </SelectTrigger>
                                       <SelectContent>
@@ -785,7 +785,7 @@ export default function AdminUsers() {
                                       </SelectContent>
                                     </Select>
                                     {!isUserAdmin && (
-                                      <Button variant="outline" size="sm" className="gap-1 h-7 text-xs px-2"
+                                      <Button variant="outline" size="sm" className="gap-1 h-6 text-[11px] px-1.5"
                                         onClick={() => setExpandedUser(isExpanded ? null : user.id)}
                                         data-testid={`button-permissions-${user.id}`}>
                                         <Settings className="w-3 h-3" />
@@ -794,14 +794,14 @@ export default function AdminUsers() {
                                       </Button>
                                     )}
                                     <Button
-                                      variant="outline" size="icon" className="h-8 w-8" title="비밀번호 초기화"
+                                      variant="outline" size="icon" className="h-6 w-6" title="비밀번호 초기화"
                                       data-testid={`button-reset-pw-${user.id}`}
                                       onClick={() => setResetPwTarget(user)}
                                     >
-                                      <KeyRound className="w-3.5 h-3.5" />
+                                      <KeyRound className="w-3 h-3" />
                                     </Button>
                                     {!isUserAdmin && (
-                                      <div className="flex items-center gap-1 h-7 px-1.5 rounded-md border">
+                                      <div className="flex items-center gap-1 h-6 px-1 rounded-md border">
                                         <Switch
                                           checked={user.isActive !== false}
                                           onCheckedChange={(checked) => toggleActiveMutation.mutate({ userId: user.id, isActive: checked })}
@@ -815,7 +815,7 @@ export default function AdminUsers() {
                                       </div>
                                     )}
                                     {user.lockedUntil && new Date(user.lockedUntil) > new Date() && (
-                                      <Button variant="outline" size="icon" className="h-7 w-7 text-orange-600 border-orange-300 hover:bg-orange-50"
+                                      <Button variant="outline" size="icon" className="h-6 w-6 text-orange-600 border-orange-300 hover:bg-orange-50"
                                         onClick={() => unlockUserMutation.mutate(user.id)}
                                         disabled={unlockUserMutation.isPending} title="계정 잠금 해제"
                                         data-testid={`button-unlock-${user.id}`}>
@@ -823,7 +823,7 @@ export default function AdminUsers() {
                                       </Button>
                                     )}
                                     {user.totpEnabled && (
-                                      <Button variant="outline" size="icon" className="h-7 w-7 text-blue-600 border-blue-300 hover:bg-blue-50"
+                                      <Button variant="outline" size="icon" className="h-6 w-6 text-blue-600 border-blue-300 hover:bg-blue-50"
                                         onClick={() => { if (confirm(`${user.name || user.username}의 2차 인증(PIN)을 초기화하시겠습니까?`)) resetTotpMutation.mutate(user.id); }}
                                         disabled={resetTotpMutation.isPending} title="2차 인증 초기화"
                                         data-testid={`button-reset-totp-${user.id}`}>
@@ -831,18 +831,18 @@ export default function AdminUsers() {
                                       </Button>
                                     )}
                                     {!user.resignedAt && (
-                                      <Button variant="outline" size="icon" className="h-7 w-7 text-orange-600 border-orange-300 hover:bg-orange-50"
+                                      <Button variant="outline" size="icon" className="h-6 w-6 text-orange-600 border-orange-300 hover:bg-orange-50"
                                         onClick={() => { const reason = prompt("퇴사 사유를 입력하세요 (선택사항):", "퇴사"); if (reason !== null) resignMutation.mutate({ userId: user.id, reason: reason || "퇴사 처리" }); }}
                                         disabled={resignMutation.isPending} title="퇴사 처리"
                                         data-testid={`button-resign-${user.id}`}>
                                         <UserX className="w-3 h-3" />
                                       </Button>
                                     )}
-                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                    <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:text-destructive hover:bg-destructive/10"
                                       onClick={() => { if (confirm("정말로 이 사용자를 삭제하시겠습니까?")) deleteUserMutation.mutate(user.id); }}
                                       disabled={deleteUserMutation.isPending}
                                       data-testid={`button-delete-${user.id}`}>
-                                      <Trash2 className="w-3.5 h-3.5" />
+                                      <Trash2 className="w-3 h-3" />
                                     </Button>
                                   </div>
                                 )}
@@ -850,7 +850,7 @@ export default function AdminUsers() {
 
                               {/* 권한 설정 패널 */}
                               {isExpanded && !isUserAdmin && (
-                                <div className="border-t bg-muted/30 px-4 py-4 pl-12">
+                                <div className="border-t bg-muted/30 px-3 py-3 pl-10">
                                   <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                                     <h4 className="text-sm font-semibold flex items-center gap-2">
                                       <Shield className="w-4 h-4 text-primary" />
