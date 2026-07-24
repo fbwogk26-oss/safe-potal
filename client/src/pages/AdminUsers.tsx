@@ -1297,6 +1297,11 @@ function CreateUserDialog() {
 }
 
 function ResetPasswordDialog({ user, open, onClose }: { user: UserData | null; open: boolean; onClose: () => void }) {
+  // 닫힘 애니메이션 중에도 콘텐츠 유지 — 즉시 null 반환 시 Radix 포커스 복원이 깨짐
+  const lastUserRef = useRef<UserData | null>(null);
+  if (user) lastUserRef.current = user;
+  const displayUser = lastUserRef.current;
+
   const [newPassword, setNewPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [resetSuccess, setResetSuccess] = useState<string | null>(null);
@@ -1334,18 +1339,18 @@ function ResetPasswordDialog({ user, open, onClose }: { user: UserData | null; o
   };
 
   const handleReset = () => {
-    if (!user) return;
+    if (!displayUser) return;
     const err = validatePassword(newPassword);
     if (err) {
       toast({ variant: "destructive", title: err });
       return;
     }
-    resetMutation.mutate({ userId: user.id, newPassword });
+    resetMutation.mutate({ userId: displayUser.id, newPassword });
   };
 
   const handleCopy = () => {
-    if (!resetSuccess || !user) return;
-    navigator.clipboard.writeText(`아이디: ${user.username}\n초기화된 비밀번호: ${resetSuccess}`);
+    if (!resetSuccess || !displayUser) return;
+    navigator.clipboard.writeText(`아이디: ${displayUser.username}\n초기화된 비밀번호: ${resetSuccess}`);
     toast({ title: "복사되었습니다" });
   };
 
@@ -1356,18 +1361,18 @@ function ResetPasswordDialog({ user, open, onClose }: { user: UserData | null; o
     onClose();
   };
 
-  if (!user) return null;
-
+  // user=null이어도 Dialog는 유지 — Radix가 닫힘 애니메이션·포커스 복원을 완료한 뒤 언마운트됨
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) handleClose(); }}>
       <DialogContent className="sm:max-w-sm">
+        {displayUser && (<>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <KeyRound className="w-5 h-5 text-primary" />
             비밀번호 초기화
           </DialogTitle>
           <DialogDescription>
-            {user.name || user.username}님의 비밀번호를 초기화합니다
+            {displayUser.name || displayUser.username}님의 비밀번호를 초기화합니다
           </DialogDescription>
         </DialogHeader>
         {resetSuccess ? (
@@ -1375,7 +1380,7 @@ function ResetPasswordDialog({ user, open, onClose }: { user: UserData | null; o
             <div className="rounded-lg border bg-muted/50 p-4 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">아이디</span>
-                <span className="text-sm font-medium font-mono">{user.username}</span>
+                <span className="text-sm font-medium font-mono">{displayUser.username}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">초기화된 비밀번호</span>
@@ -1443,6 +1448,7 @@ function ResetPasswordDialog({ user, open, onClose }: { user: UserData | null; o
             </DialogFooter>
           </div>
         )}
+        </>)}
       </DialogContent>
     </Dialog>
   );
