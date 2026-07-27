@@ -54,3 +54,9 @@ id = "TlPvBD5tik_EIeQ05ZLvP"
 uri = "file://safetyboard_export.sql"
 type = "unspecified"
 title = "safetyboard_export.sql — 배포 사이트 DB 전체 덤프"
+
+[[outputs]]
+id = "8UH8O5SDID2x_2bnwlIX5"
+uri = "file://safetyboard_export.sql.gz"
+type = "unspecified"
+title = "safetyboard_export.sql.gz — 배포 사이트 DB (6.3MB 압축)"
