@@ -8199,11 +8199,8 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
         return res.status(400).json({ message: "이메일 내용을 추출할 수 없습니다. 파일 형식을 확인해주세요." });
       }
 
-      const OpenAI = (await import("openai")).default;
-      const aiClient = new OpenAI({
-        apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-        baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-      });
+      const Anthropic = (await import("@anthropic-ai/sdk")).default;
+      const aiClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
       const systemPrompt = `당신은 하도급 업체가 보낸 작업일정 이메일을 파싱하는 전문 AI입니다.
 
@@ -8232,17 +8229,17 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
 workers 배열은 실제 작업자 명단이며, supervisor는 KT/KTMOS 측 감독자입니다.
 지역명이 없으면 빈 문자열로 두세요.`;
 
-      const response = await aiClient.chat.completions.create({
-        model: "gpt-4o",
+      const response = await aiClient.messages.create({
+        model: "claude-3-5-haiku-20241022",
+        system: systemPrompt,
         messages: [
-          { role: "system", content: systemPrompt },
           { role: "user", content: `다음 하도급 업체 작업일정 이메일을 파싱해주세요:\n\n${emailText.slice(0, 8000)}` }
         ],
         temperature: 0,
         max_tokens: 3000,
       });
 
-      const rawJson = response.choices[0].message.content?.trim() || "{}";
+      const rawJson = (response.content[0] as any).text?.trim() || "{}";
       let parsed: any = {};
       try {
         const cleaned = rawJson.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
@@ -8371,11 +8368,8 @@ workers 배열은 실제 작업자 명단이며, supervisor는 KT/KTMOS 측 감�
         return res.status(400).json({ message: "이메일 내용을 추출할 수 없습니다." });
       }
 
-      const OpenAI = (await import("openai")).default;
-      const aiClient = new OpenAI({
-        apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-        baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-      });
+      const Anthropic = (await import("@anthropic-ai/sdk")).default;
+      const aiClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
       const systemPrompt = `당신은 하도급 업체가 보낸 작업일정 이메일을 파싱하는 전문 AI입니다.
 
@@ -8404,17 +8398,17 @@ workers 배열은 실제 작업자 명단이며, supervisor는 KT/KTMOS 측 감�
 workers 배열은 실제 작업자 명단이며, supervisor는 KT/KTMOS 측 감독자입니다.
 지역명이 없으면 빈 문자열로 두세요.`;
 
-      const response = await aiClient.chat.completions.create({
-        model: "gpt-4o",
+      const response = await aiClient.messages.create({
+        model: "claude-3-5-haiku-20241022",
+        system: systemPrompt,
         messages: [
-          { role: "system", content: systemPrompt },
           { role: "user", content: `다음 하도급 업체 작업일정 이메일을 파싱해주세요:\n\n${emailText.slice(0, 8000)}` }
         ],
         temperature: 0,
         max_tokens: 3000,
       });
 
-      const rawJson = response.choices[0].message.content?.trim() || "{}";
+      const rawJson = (response.content[0] as any).text?.trim() || "{}";
       let parsed: any = {};
       try {
         const cleaned = rawJson.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
