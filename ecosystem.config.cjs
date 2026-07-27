@@ -10,6 +10,8 @@ module.exports = {
       env: {
         NODE_ENV: "production",
         PORT: 5000,
+        DATABASE_URL: "postgresql://postgres:ryujaeha123!!@localhost:5432/safetyboard",
+        SESSION_SECRET: "safetyboard-session-secret-2026",
       },
       // 충돌 시 자동 재시작
       autorestart: true,
