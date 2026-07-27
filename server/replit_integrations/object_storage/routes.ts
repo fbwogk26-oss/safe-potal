@@ -119,10 +119,13 @@ export function registerObjectStorageRoutes(app: Express): void {
     const remoteBase = process.env.OBJECT_STORAGE_PROXY_URL;
     if (!remoteBase) return false;
     try {
-      const url = `${remoteBase.replace(/\/$/, "")}${req.path}`;
+      const token = process.env.FILE_PROXY_TOKEN;
+      const url = `${remoteBase.replace(/\/$/, "")}${req.path}${token ? `?_fpt=${token}` : ""}`;
       const upstream = await fetch(url, { headers: { "User-Agent": "SafeBoard-Proxy/1.0" } });
       if (!upstream.ok) return false;
-      const ct = upstream.headers.get("content-type");
+      const ct = upstream.headers.get("content-type") || "";
+      // HTML이 반환되면 로그인 페이지 → 프록시 실패
+      if (ct.includes("text/html")) return false;
       if (ct) res.setHeader("Content-Type", ct);
       res.setHeader("Cache-Control", "public, max-age=86400");
       const buf = Buffer.from(await upstream.arrayBuffer());
