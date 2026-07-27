@@ -48,3 +48,9 @@ id = "VcOmJ71QWM_Q0Rx86OWQ2"
 uri = "file://patch_autoemail.cjs"
 type = "unspecified"
 title = "patch_autoemail.cjs — 자동발송 스케줄러 Claude 교체"
+
+[[outputs]]
+id = "TlPvBD5tik_EIeQ05ZLvP"
+uri = "file://safetyboard_export.sql"
+type = "unspecified"
+title = "safetyboard_export.sql — 배포 사이트 DB 전체 덤프"
