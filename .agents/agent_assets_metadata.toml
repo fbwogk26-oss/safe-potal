@@ -42,3 +42,9 @@ id = "YngJCsaNFB0Q4UriXUaN4"
 uri = "file://find_model.cjs"
 type = "unspecified"
 title = "find_model.cjs — 사용 가능한 모델 자동 탐색 + routes.ts 교체"
+
+[[outputs]]
+id = "VcOmJ71QWM_Q0Rx86OWQ2"
+uri = "file://patch_autoemail.cjs"
+type = "unspecified"
+title = "patch_autoemail.cjs — 자동발송 스케줄러 Claude 교체"
