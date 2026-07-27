@@ -10856,10 +10856,19 @@ ${htmlDraft}
     if (fileUrl.startsWith('/objects/')) {
       const privateDir = process.env.PRIVATE_OBJECT_DIR;
       if (privateDir) {
-        const fullPath = `${privateDir.replace(/\/$/, "")}/uploads/${filename}`;
-        const parts = fullPath.replace(/^\//, "").split("/");
-        const [buf] = await objectStorageClient.bucket(parts[0]).file(parts.slice(1).join("/")).download();
-        return { buffer: buf as Buffer, ext };
+        try {
+          const fullPath = `${privateDir.replace(/\/$/, "")}/uploads/${filename}`;
+          const parts = fullPath.replace(/^\//, "").split("/");
+          const [buf] = await objectStorageClient.bucket(parts[0]).file(parts.slice(1).join("/")).download();
+          return { buffer: buf as Buffer, ext };
+        } catch {
+          // Object Storage 실패 시 프록시로 fallback
+          const proxyBase = process.env.OBJECT_STORAGE_PROXY_URL;
+          if (proxyBase) {
+            const resp = await fetch(`${proxyBase.replace(/\/$/, "")}/objects/uploads/${filename}`);
+            if (resp.ok) return { buffer: Buffer.from(await resp.arrayBuffer()), ext };
+          }
+        }
       }
     }
     const localPath = path.join(uploadDir, filename);
@@ -10983,34 +10992,45 @@ ${htmlDraft}
   // 보고서 파일 다운로드 프록시 (object storage → 브라우저)
   async function proxyReportFile(fileUrl: string | null, fileOriginalName: string | null, res: any, inline = false) {
     if (!fileUrl) return res.status(404).json({ message: "파일 없음" });
+
+    const filename = fileUrl.split('/').pop()!;
+    const ext = path.extname(filename).toLowerCase();
+    const mimeMap: Record<string, string> = {
+      '.pdf': 'application/pdf', '.doc': 'application/msword',
+      '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      '.hwp': 'application/x-hwp', '.hwpx': 'application/x-hwp',
+      '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      '.xls': 'application/vnd.ms-excel',
+      '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+    };
+    const contentType = mimeMap[ext] || 'application/octet-stream';
+    const safeFilename = encodeURIComponent(fileOriginalName || filename);
+
+    function sendBuffer(buffer: Buffer) {
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Content-Disposition', `${inline ? 'inline' : 'attachment'}; filename*=UTF-8''${safeFilename}`);
+      return res.send(buffer);
+    }
+
     try {
       if (fileUrl.startsWith('/objects/')) {
         const privateDir = process.env.PRIVATE_OBJECT_DIR;
         if (privateDir) {
-          const filename = fileUrl.split('/').pop()!;
-          const fullPath = `${privateDir.replace(/\/$/, "")}/uploads/${filename}`;
-          const parts = fullPath.replace(/^\//, "").split("/");
-          const bucketName = parts[0];
-          const objectName = parts.slice(1).join("/");
-          const [buffer] = await objectStorageClient.bucket(bucketName).file(objectName).download();
-          const ext = path.extname(filename).toLowerCase();
-          const mimeMap: Record<string, string> = {
-            '.pdf': 'application/pdf', '.doc': 'application/msword',
-            '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            '.hwp': 'application/x-hwp', '.hwpx': 'application/x-hwp',
-            '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            '.xls': 'application/vnd.ms-excel',
-            '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
-          };
-          const contentType = mimeMap[ext] || 'application/octet-stream';
-          const safeFilename = encodeURIComponent(fileOriginalName || filename);
-          res.setHeader('Content-Type', contentType);
-          if (inline) {
-            res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${safeFilename}`);
-          } else {
-            res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${safeFilename}`);
+          try {
+            const fullPath = `${privateDir.replace(/\/$/, "")}/uploads/${filename}`;
+            const parts = fullPath.replace(/^\//, "").split("/");
+            const [buffer] = await objectStorageClient.bucket(parts[0]).file(parts.slice(1).join("/")).download();
+            return sendBuffer(buffer as Buffer);
+          } catch {
+            // Object Storage 실패(Windows 등) → 프록시로 fallback
+            const proxyBase = process.env.OBJECT_STORAGE_PROXY_URL;
+            if (proxyBase) {
+              try {
+                const resp = await fetch(`${proxyBase.replace(/\/$/, "")}/objects/uploads/${filename}`);
+                if (resp.ok) return sendBuffer(Buffer.from(await resp.arrayBuffer()));
+              } catch { /* 프록시도 실패 */ }
+            }
           }
-          return res.send(buffer);
         }
       }
       // local uploads 폴백
