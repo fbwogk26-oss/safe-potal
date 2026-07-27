@@ -6,3 +6,9 @@ id = "xsSPDisKLnaPll79_UhCo"
 uri = "file://SafeBoard_사용설명서.pptx"
 type = "slides"
 title = "SafeBoard 사용설명서.pptx"
+
+[[outputs]]
+id = "rT5keWnJoDb7wXsiX3Aid"
+uri = "file://env_windows.txt"
+type = "text"
+title = ".env (Windows용) — 다운로드 후 C:\\SafeBoard\\.env 로 저장"
