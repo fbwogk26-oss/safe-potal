@@ -10895,11 +10895,10 @@ ${htmlDraft}
           const [buf] = await objectStorageClient.bucket(parts[0]).file(parts.slice(1).join("/")).download();
           return { buffer: buf as Buffer, ext };
         } catch {
-          // Object Storage 실패 시 토큰 기반 프록시로 fallback
+          // Object Storage 실패 시 배포사이트 프록시로 fallback
           const proxyBase = process.env.OBJECT_STORAGE_PROXY_URL;
-          const token = process.env.FILE_PROXY_TOKEN;
-          if (proxyBase && token) {
-            const resp = await fetch(`${proxyBase.replace(/\/$/, "")}/api/file-proxy/${encodeURIComponent(filename)}?_fpt=${token}`);
+          if (proxyBase) {
+            const resp = await fetch(`${proxyBase.replace(/\/$/, "")}/objects/uploads/${encodeURIComponent(filename)}`);
             if (resp.ok) {
               const ct = resp.headers.get("content-type") || "";
               if (!ct.includes("text/html")) return { buffer: Buffer.from(await resp.arrayBuffer()), ext };
@@ -11059,12 +11058,11 @@ ${htmlDraft}
             const [buffer] = await objectStorageClient.bucket(parts[0]).file(parts.slice(1).join("/")).download();
             return sendBuffer(buffer as Buffer);
           } catch {
-            // Object Storage 실패(Windows 등) → 토큰 기반 프록시로 fallback
+            // Object Storage 실패(Windows 등) → 배포사이트 프록시로 fallback
             const proxyBase = process.env.OBJECT_STORAGE_PROXY_URL;
-            const token = process.env.FILE_PROXY_TOKEN;
-            if (proxyBase && token) {
+            if (proxyBase) {
               try {
-                const resp = await fetch(`${proxyBase.replace(/\/$/, "")}/api/file-proxy/${encodeURIComponent(filename)}?_fpt=${token}`);
+                const resp = await fetch(`${proxyBase.replace(/\/$/, "")}/objects/uploads/${encodeURIComponent(filename)}`);
                 if (resp.ok) {
                   const ct = resp.headers.get("content-type") || "";
                   if (!ct.includes("text/html")) return sendBuffer(Buffer.from(await resp.arrayBuffer()));

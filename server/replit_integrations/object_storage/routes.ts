@@ -119,15 +119,11 @@ export function registerObjectStorageRoutes(app: Express): void {
     const remoteBase = process.env.OBJECT_STORAGE_PROXY_URL;
     if (!remoteBase) return false;
     try {
-      const token = process.env.FILE_PROXY_TOKEN;
-      // /objects/uploads/filename → /api/file-proxy/filename?_fpt=TOKEN (토큰 인증, HTML 응답 없음)
-      const filename = req.path.replace(/^\/objects\/uploads\//, "");
-      const url = token
-        ? `${remoteBase.replace(/\/$/, "")}/api/file-proxy/${encodeURIComponent(filename)}?_fpt=${token}`
-        : `${remoteBase.replace(/\/$/, "")}${req.path}`;
+      const url = `${remoteBase.replace(/\/$/, "")}${req.path}`;
       const upstream = await fetch(url, { headers: { "User-Agent": "SafeBoard-Proxy/1.0" } });
       if (!upstream.ok) return false;
       const ct = upstream.headers.get("content-type") || "";
+      // HTML이 반환되면 SPA 페이지(파일 없음) → 프록시 실패
       if (ct.includes("text/html")) return false;
       if (ct) res.setHeader("Content-Type", ct);
       res.setHeader("Cache-Control", "public, max-age=86400");
