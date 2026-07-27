@@ -253,12 +253,10 @@ export async function runSpeedEngAutoJob(): Promise<void> {
       return;
     }
 
-    // GPT-4o로 작업 정보 파싱
-    const OpenAI = (await import("openai")).default;
-    const aiClient = new OpenAI({
-      apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-      baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-    });
+    // Claude로 작업 정보 파싱
+    const Anthropic = (await import("@anthropic-ai/sdk")).default;
+    const aiClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    console.log("[AutoEmail] 🤖 Claude API 호출 시작 (claude-haiku-4-5)");
 
     const systemPrompt = `당신은 하도급 업체가 보낸 작업일정 이메일을 파싱하는 전문 AI입니다.
 
@@ -287,17 +285,18 @@ export async function runSpeedEngAutoJob(): Promise<void> {
 workers 배열은 실제 작업자 명단이며, supervisor는 KT/KTMOS 측 감독자입니다.
 지역명이 없으면 빈 문자열로 두세요.`;
 
-    const aiRes = await aiClient.chat.completions.create({
-      model: "gpt-4o",
+    const aiRes = await aiClient.messages.create({
+      model: "claude-haiku-4-5",
+      system: systemPrompt,
       messages: [
-        { role: "system", content: systemPrompt },
         { role: "user", content: `다음 하도급 업체 작업일정 이메일을 파싱해주세요:\n\n${emailText.slice(0, 8000)}` },
       ],
       temperature: 0,
       max_tokens: 3000,
     });
+    console.log("[AutoEmail] ✅ Claude 응답 완료");
 
-    const rawJson = aiRes.choices[0].message.content?.trim() || "{}";
+    const rawJson = (aiRes.content[0] as any).text?.trim() || "{}";
     let parsed: any = {};
     try {
       const cleaned = rawJson.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
