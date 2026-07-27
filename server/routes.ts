@@ -3873,6 +3873,37 @@ ${buildEmailFooter()}
     }
   });
 
+  // ── GET /api/admin/db-export ──────────────────────────────────────────────
+  // 토큰 기반 DB 내보내기 (브라우저 세션 없이 curl로 호출 가능)
+  // 용도: Windows 노트북에서 배포 사이트 데이터를 주기적으로 당겨올 때 사용
+  // 인증: ?token=DB_SYNC_TOKEN 환경변수 값
+  app.get("/api/admin/db-export", async (req: any, res) => {
+    try {
+      const syncToken = process.env.DB_SYNC_TOKEN;
+      if (!syncToken) return res.status(503).json({ message: "DB_SYNC_TOKEN 환경변수가 설정되지 않았습니다." });
+      const provided = req.query.token as string | undefined;
+      if (!provided || provided !== syncToken) {
+        return res.status(401).json({ message: "유효하지 않은 토큰입니다." });
+      }
+      const { exec } = await import("child_process");
+      const { promisify } = await import("util");
+      const execAsync = promisify(exec);
+      const dbUrl = process.env.DATABASE_URL!;
+      const stamp = new Date().toISOString().slice(0, 16).replace(/[-T:]/g, "");
+      const filename = `safetyboard_${stamp}.sql`;
+      res.setHeader("Content-Type", "application/sql");
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      const { stdout } = await execAsync(`pg_dump --no-owner --no-acl "${dbUrl}"`, {
+        maxBuffer: 200 * 1024 * 1024,
+      });
+      console.log(`[db-export] 내보내기 완료: ${filename} (${(stdout.length / 1024).toFixed(0)} KB)`);
+      res.send(stdout);
+    } catch (err: any) {
+      console.error("[db-export] 실패:", err?.message);
+      if (!res.headersSent) res.status(500).json({ message: "DB 내보내기 실패: " + err?.message });
+    }
+  });
+
   app.get("/api/admin/backup/files", isAuthenticated, async (req: any, res) => {
     if (req.user?.role !== "admin") return res.status(403).json({ message: "관리자만 접근 가능합니다." });
     const privateDir = process.env.PRIVATE_OBJECT_DIR;
