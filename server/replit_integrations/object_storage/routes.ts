@@ -114,11 +114,32 @@ export function registerObjectStorageRoutes(app: Express): void {
    * GET /objects/uploads/:filename  — served without auth (app-internal uploads)
    * Other /objects/ paths require authentication unless ACL is public.
    */
+  // Object Storage 프록시 헬퍼 (Replit 사이드카 없는 환경용)
+  async function proxyToRemote(req: any, res: any): Promise<boolean> {
+    const remoteBase = process.env.OBJECT_STORAGE_PROXY_URL;
+    if (!remoteBase) return false;
+    try {
+      const url = `${remoteBase.replace(/\/$/, "")}${req.path}`;
+      const upstream = await fetch(url, { headers: { "User-Agent": "SafeBoard-Proxy/1.0" } });
+      if (!upstream.ok) return false;
+      const ct = upstream.headers.get("content-type");
+      if (ct) res.setHeader("Content-Type", ct);
+      res.setHeader("Cache-Control", "public, max-age=86400");
+      const buf = Buffer.from(await upstream.arrayBuffer());
+      res.send(buf);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   app.get(/^\/objects\/uploads\/(.*)$/, async (req: any, res) => {
     try {
       const objectFile = await objectStorageService.getObjectEntityFile(req.path);
       await objectStorageService.downloadObject(objectFile, res, req);
     } catch (error) {
+      // Replit 사이드카 없는 환경(Windows 등)에서는 배포사이트로 프록시
+      if (await proxyToRemote(req, res)) return;
       if (error instanceof ObjectNotFoundError) {
         return res.status(404).json({ error: "Object not found" });
       }
@@ -139,6 +160,8 @@ export function registerObjectStorageRoutes(app: Express): void {
       }
       await objectStorageService.downloadObject(objectFile, res, req);
     } catch (error) {
+      // Replit 사이드카 없는 환경(Windows 등)에서는 배포사이트로 프록시
+      if (await proxyToRemote(req, res)) return;
       console.error("Error serving object:", error);
       if (error instanceof ObjectNotFoundError) {
         return res.status(404).json({ error: "Object not found" });

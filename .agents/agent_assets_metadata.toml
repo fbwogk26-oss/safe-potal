@@ -84,3 +84,9 @@ id = "bvGGaKEh8QCGEeRvIf-Qk"
 uri = "file://uploads.zip"
 type = "unspecified"
 title = "uploads.zip — 업로드 파일 전체 (156개, 106MB)"
+
+[[outputs]]
+id = "3x1At8PJtsrQJe6SUUY9S"
+uri = "file://patch_proxy.cjs"
+type = "unspecified"
+title = "patch_proxy.cjs — Object Storage 프록시 패치"
