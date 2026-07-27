@@ -31,7 +31,7 @@ function buildSession(secret: string) {
     ttl: sessionTtl,
     tableName: "sessions",
   });
-  const isProduction = process.env.NODE_ENV === "production";
+  const isSecure = process.env.NODE_ENV === "production" && process.env.HTTPS_ENABLED === "true";
   return session({
     secret,
     store: sessionStore,
@@ -41,7 +41,7 @@ function buildSession(secret: string) {
     name: "__sb_sid",
     cookie: {
       httpOnly: true,
-      secure: isProduction,
+      secure: isSecure,
       sameSite: "lax" as const,
       maxAge: sessionTtl,
     },
