@@ -8232,7 +8232,7 @@ probability는 1~5 정수 (1=거의없음 2=가끔 3=보통 4=자주 5=매우자
 
       const Anthropic = (await import("@anthropic-ai/sdk")).default;
       const aiClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-      console.log("[parse-subcontract-email] 🤖 Claude API 호출 시작 (claude-3-5-haiku-20241022)");
+      console.log("[parse-subcontract-email] 🤖 Claude API 호출 시작 (claude-3-haiku-20240307)");
 
       const systemPrompt = `당신은 하도급 업체가 보낸 작업일정 이메일을 파싱하는 전문 AI입니다.
 
@@ -8262,7 +8262,7 @@ workers 배열은 실제 작업자 명단이며, supervisor는 KT/KTMOS 측 감�
 지역명이 없으면 빈 문자열로 두세요.`;
 
       const response = await aiClient.messages.create({
-        model: "claude-3-5-haiku-20241022",
+        model: "claude-3-haiku-20240307",
         system: systemPrompt,
         messages: [
           { role: "user", content: `다음 하도급 업체 작업일정 이메일을 파싱해주세요:\n\n${emailText.slice(0, 8000)}` }
@@ -8403,7 +8403,7 @@ workers 배열은 실제 작업자 명단이며, supervisor는 KT/KTMOS 측 감�
 
       const Anthropic = (await import("@anthropic-ai/sdk")).default;
       const aiClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-      console.log("[process-gmail] 🤖 Claude API 호출 시작 (claude-3-5-haiku-20241022)");
+      console.log("[process-gmail] 🤖 Claude API 호출 시작 (claude-3-haiku-20240307)");
 
       const systemPrompt = `당신은 하도급 업체가 보낸 작업일정 이메일을 파싱하는 전문 AI입니다.
 
@@ -8433,7 +8433,7 @@ workers 배열은 실제 작업자 명단이며, supervisor는 KT/KTMOS 측 감�
 지역명이 없으면 빈 문자열로 두세요.`;
 
       const response = await aiClient.messages.create({
-        model: "claude-3-5-haiku-20241022",
+        model: "claude-3-haiku-20240307",
         system: systemPrompt,
         messages: [
           { role: "user", content: `다음 하도급 업체 작업일정 이메일을 파싱해주세요:\n\n${emailText.slice(0, 8000)}` }
