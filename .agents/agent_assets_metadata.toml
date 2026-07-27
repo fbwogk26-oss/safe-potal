@@ -96,3 +96,9 @@ id = "9P7vUINxLF8FsBA4y2OAd"
 uri = "file://prod_full_clean.sql.gz"
 type = "unspecified"
 title = "prod_full_clean.sql.gz — 프로덕션 DB 전체 (7160행, 2.1MB)"
+
+[[outputs]]
+id = "GSih8pa_PUA1ZvSsHH1Mx"
+uri = "file://server/replit_integrations/object_storage/routes.ts"
+type = "unspecified"
+title = "routes.ts — Object Storage 프록시 패치 포함"
