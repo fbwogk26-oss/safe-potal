@@ -12,3 +12,9 @@ id = "rT5keWnJoDb7wXsiX3Aid"
 uri = "file://env_windows.txt"
 type = "text"
 title = ".env (Windows용) — 다운로드 후 C:\\SafeBoard\\.env 로 저장"
+
+[[outputs]]
+id = "XqbEBwwRLqwIJw3pIsK1J"
+uri = "file://patch_claude.cjs"
+type = "unspecified"
+title = "patch_claude.cjs — 노트북에서 node patch_claude.cjs 실행"
