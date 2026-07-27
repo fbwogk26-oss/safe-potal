@@ -108,3 +108,9 @@ id = "-Tk6daOkh6rpnqNWluFgZ"
 uri = "file://dist/index.cjs"
 type = "unspecified"
 title = "index.cjs — 개발서버 file-proxy 최종본"
+
+[[outputs]]
+id = "wL9MAeYI--yqFX62bZthf"
+uri = "file://download_files.mjs"
+type = "unspecified"
+title = "download_files.mjs — 파일 일괄 다운로드 스크립트"
