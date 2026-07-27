@@ -90,3 +90,9 @@ id = "3x1At8PJtsrQJe6SUUY9S"
 uri = "file://patch_proxy.cjs"
 type = "unspecified"
 title = "patch_proxy.cjs — Object Storage 프록시 패치"
+
+[[outputs]]
+id = "9P7vUINxLF8FsBA4y2OAd"
+uri = "file://prod_full_clean.sql.gz"
+type = "unspecified"
+title = "prod_full_clean.sql.gz — 프로덕션 DB 전체 (7160행, 2.1MB)"
