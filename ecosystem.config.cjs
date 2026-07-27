@@ -6,9 +6,11 @@ module.exports = {
       name: "safetyboard",
       script: "dist/index.cjs",          // npm run build 후 생성되는 파일
       interpreter: "node",
+      node_args: ["-r", "dotenv/config"],
       env: {
         NODE_ENV: "production",
         PORT: 5000,
+        DOTENV_CONFIG_PATH: "C:\\SafeBoard\\.env",
       },
       // 충돌 시 자동 재시작
       autorestart: true,
