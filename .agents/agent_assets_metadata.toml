@@ -72,3 +72,9 @@ id = "-7QSoL7tnH98oDbNv9h99"
 uri = "file://prod_data.sql"
 type = "unspecified"
 title = "prod_data.sql — 배포사이트 최신 데이터 (5.8MB, 5,948행)"
+
+[[outputs]]
+id = "IlT_m1OoMm181HI-_fMmt"
+uri = "file://prod_data2.sql"
+type = "unspecified"
+title = "prod_data2.sql — 배포사이트 전체 데이터 (FK 안전버전)"
