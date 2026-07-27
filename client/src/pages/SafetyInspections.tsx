@@ -260,8 +260,10 @@ export default function SafetyInspections() {
   const [bulkExcelFile, setBulkExcelFile] = useState<File | null>(null);
   const bulkPdfInputRef = useRef<HTMLInputElement>(null);
   const bulkExcelInputRef = useRef<HTMLInputElement>(null);
-  const [dashboardPeriod, setDashboardPeriod] = useState<"week" | "month" | "year">("month");
+  const [dashboardPeriod, setDashboardPeriod] = useState<"week" | "month" | "year" | "custom">("month");
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
+  const [customStart, setCustomStart] = useState<string>(() => format(new Date(new Date().getFullYear(), new Date().getMonth(), 1), "yyyy-MM-dd"));
+  const [customEnd, setCustomEnd] = useState<string>(() => format(new Date(), "yyyy-MM-dd"));
   const [selectedWeekStart, setSelectedWeekStart] = useState<Date>(() => {
     const now = new Date();
     const day = now.getDay(); // 0=일, 1=월, ..., 6=토
@@ -896,6 +898,7 @@ export default function SafetyInspections() {
     const filtered = rawInspections.filter(insp => {
       if (dashboardPeriod === "week") return insp.inspectionDate >= weekStart && insp.inspectionDate <= weekEnd;
       if (dashboardPeriod === "month") return insp.inspectionDate.startsWith(targetMonth);
+      if (dashboardPeriod === "custom") return customStart && customEnd ? insp.inspectionDate >= customStart && insp.inspectionDate <= customEnd : true;
       return insp.inspectionDate.startsWith(currentYear);
     });
 
@@ -947,9 +950,11 @@ export default function SafetyInspections() {
       chartData,
       periodLabel: dashboardPeriod === "week"
         ? `${format(selectedWeekStart, "M/d")}~${format(weekEndDate, "M/d")}`
-        : dashboardPeriod === "month" ? `${selectedMonth}월` : `${now.getFullYear()}년`,
+        : dashboardPeriod === "month" ? `${selectedMonth}월`
+        : dashboardPeriod === "custom" ? `${customStart}~${customEnd}`
+        : `${now.getFullYear()}년`,
     };
-  }, [rawInspections, teams, inspectionTargets, dashboardPeriod, selectedMonth, selectedWeekStart, weekEndDate]);
+  }, [rawInspections, teams, inspectionTargets, dashboardPeriod, selectedMonth, selectedWeekStart, weekEndDate, customStart, customEnd]);
 
   const filteredInspections = useMemo(() => {
     if (!rawInspections) return [];
@@ -961,13 +966,17 @@ export default function SafetyInspections() {
       const weekStart = format(selectedWeekStart, "yyyy-MM-dd");
       const weekEnd = format(weekEndDate, "yyyy-MM-dd");
       result = rawInspections.filter(i => i.inspectionDate >= weekStart && i.inspectionDate <= weekEnd);
+    } else if (dashboardPeriod === "custom") {
+      result = customStart && customEnd
+        ? rawInspections.filter(i => i.inspectionDate >= customStart && i.inspectionDate <= customEnd)
+        : rawInspections;
     } else {
       const monthStr = String(selectedMonth).padStart(2, "0");
       const prefix = `${currentYear}-${monthStr}`;
       result = rawInspections.filter(i => i.inspectionDate.startsWith(prefix));
     }
     return [...result].sort((a, b) => b.inspectionDate.localeCompare(a.inspectionDate));
-  }, [rawInspections, selectedMonth, dashboardPeriod, selectedWeekStart, weekEndDate]);
+  }, [rawInspections, selectedMonth, dashboardPeriod, selectedWeekStart, weekEndDate, customStart, customEnd]);
 
   const [showInspDashboard, setShowInspDashboard] = useState(true);
 
@@ -1173,6 +1182,8 @@ export default function SafetyInspections() {
                       onClick={(e) => { e.stopPropagation(); setDashboardPeriod("month"); }} data-testid="button-period-month">월별</Button>
                     <Button variant={dashboardPeriod === "year" ? "default" : "outline"} size="sm" className="h-7 text-xs px-2.5"
                       onClick={(e) => { e.stopPropagation(); setDashboardPeriod("year"); }} data-testid="button-period-year">연간</Button>
+                    <Button variant={dashboardPeriod === "custom" ? "default" : "outline"} size="sm" className="h-7 text-xs px-2.5"
+                      onClick={(e) => { e.stopPropagation(); setDashboardPeriod("custom"); }} data-testid="button-period-custom">기간별</Button>
                     {dashboardPeriod === "week" && (
                       <div className="flex items-center gap-0.5">
                         <Button variant="outline" size="sm" className="h-7 w-7 p-0"
@@ -1201,6 +1212,26 @@ export default function SafetyInspections() {
                           ))}
                         </SelectContent>
                       </Select>
+                    )}
+                    {dashboardPeriod === "custom" && (
+                      <div className="flex items-center gap-1.5 flex-wrap" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="date"
+                          value={customStart}
+                          onChange={(e) => setCustomStart(e.target.value)}
+                          className="h-7 text-xs px-2 border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                          data-testid="input-custom-start"
+                        />
+                        <span className="text-xs text-muted-foreground font-medium">~</span>
+                        <input
+                          type="date"
+                          value={customEnd}
+                          min={customStart}
+                          onChange={(e) => setCustomEnd(e.target.value)}
+                          className="h-7 text-xs px-2 border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                          data-testid="input-custom-end"
+                        />
+                      </div>
                     )}
                   </div>
 
@@ -1593,12 +1624,15 @@ export default function SafetyInspections() {
             <Calendar className="w-4 h-4 text-muted-foreground" />
             <span className="text-sm font-medium text-muted-foreground">점검 목록</span>
             <Badge variant="secondary" className="text-xs">
-              {dashboardPeriod === "year" ? `${new Date().getFullYear()}년 전체` : dashboardPeriod === "week" ? `${format(selectedWeekStart, "M/d")}~${format(weekEndDate, "M/d")}` : `${selectedMonth}월`}
+              {dashboardPeriod === "year" ? `${new Date().getFullYear()}년 전체`
+                : dashboardPeriod === "week" ? `${format(selectedWeekStart, "M/d")}~${format(weekEndDate, "M/d")}`
+                : dashboardPeriod === "custom" ? `${customStart} ~ ${customEnd}`
+                : `${selectedMonth}월`}
             </Badge>
             <span className="text-xs text-muted-foreground">{filteredInspections.length}건</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-[11px] text-muted-foreground hidden sm:block">위 그래프 월 필터와 연동</span>
+            <span className="text-[11px] text-muted-foreground hidden sm:block">위 그래프 기간 필터와 연동</span>
             {canEditInspections && selectionMode && (
               <Button
                 variant="outline"
@@ -1636,7 +1670,10 @@ export default function SafetyInspections() {
           <div className="text-center py-8 text-muted-foreground">로딩 중...</div>
         ) : filteredInspections.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
-            {dashboardPeriod === "year" ? "올해" : dashboardPeriod === "week" ? `${format(selectedWeekStart, "M/d")}~${format(weekEndDate, "M/d")} 주간` : `${selectedMonth}월`} 등록된 점검 내역이 없습니다.
+            {dashboardPeriod === "year" ? "올해"
+              : dashboardPeriod === "week" ? `${format(selectedWeekStart, "M/d")}~${format(weekEndDate, "M/d")} 주간`
+              : dashboardPeriod === "custom" ? `${customStart} ~ ${customEnd} 기간에`
+              : `${selectedMonth}월`} 등록된 점검 내역이 없습니다.
           </div>
         ) : (
           <Card>
