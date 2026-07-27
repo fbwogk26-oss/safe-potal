@@ -66,3 +66,9 @@ id = "oKPyEA3wJ0gvLoee9CEu9"
 uri = "file://patch_auth.cjs"
 type = "unspecified"
 title = "patch_auth.cjs — replitAuth.ts 세션쿠키 수정"
+
+[[outputs]]
+id = "-7QSoL7tnH98oDbNv9h99"
+uri = "file://prod_data.sql"
+type = "unspecified"
+title = "prod_data.sql — 배포사이트 최신 데이터 (5.8MB, 5,948행)"
