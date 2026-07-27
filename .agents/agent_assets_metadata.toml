@@ -30,3 +30,9 @@ id = "Gwl_FRWC-CgBw5WmFDThf"
 uri = "file://diagnose_routes.cjs"
 type = "unspecified"
 title = "diagnose_routes.cjs — node diagnose_routes.cjs 실행 후 결과 보내주세요"
+
+[[outputs]]
+id = "IH7fyjN1uPebbFB9CF7Wb"
+uri = "file://fix_model.cjs"
+type = "unspecified"
+title = "fix_model.cjs — C:\\SafeBoard에서 실행"
