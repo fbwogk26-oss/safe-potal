@@ -1248,7 +1248,40 @@ export async function registerRoutes(
   
   // Register Object Storage routes for persistent file uploads
   registerObjectStorageRoutes(app);
-  
+
+  // ── 토큰 기반 파일 직접 서빙 (Windows 프록시용, 세션 인증 불필요) ──
+  app.get('/api/file-proxy/:filename', async (req: any, res) => {
+    const token = req.query._fpt;
+    const expected = process.env.FILE_PROXY_TOKEN;
+    if (!expected || token !== expected) return res.status(401).json({ message: "Unauthorized" });
+    const filename = path.basename(req.params.filename);
+    // 1) Object Storage
+    const privateDir = process.env.PRIVATE_OBJECT_DIR;
+    if (privateDir) {
+      try {
+        const fullPath = `${privateDir.replace(/\/$/, "")}/uploads/${filename}`;
+        const parts = fullPath.replace(/^\//, "").split("/");
+        const [buf] = await objectStorageClient.bucket(parts[0]).file(parts.slice(1).join("/")).download();
+        const ext = path.extname(filename).toLowerCase();
+        const mime: Record<string, string> = {
+          '.pdf':'application/pdf', '.jpg':'image/jpeg', '.jpeg':'image/jpeg',
+          '.png':'image/png', '.webp':'image/webp',
+          '.doc':'application/msword',
+          '.docx':'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          '.xlsx':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          '.hwp':'application/x-hwp', '.hwpx':'application/x-hwp',
+        };
+        res.setHeader('Content-Type', mime[ext] || 'application/octet-stream');
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        return res.send(buf);
+      } catch { /* fall through */ }
+    }
+    // 2) 로컬 uploads 폴백
+    const localPath = path.join(uploadDir, filename);
+    if (fs.existsSync(localPath)) return res.sendFile(localPath);
+    res.status(404).json({ message: "파일을 찾을 수 없습니다" });
+  });
+
   app.post('/api/upload', requireEditor, upload.single('image'), async (req: any, res) => {
     if (!req.file) {
       return res.status(400).json({ message: "No file uploaded" });
@@ -10862,11 +10895,15 @@ ${htmlDraft}
           const [buf] = await objectStorageClient.bucket(parts[0]).file(parts.slice(1).join("/")).download();
           return { buffer: buf as Buffer, ext };
         } catch {
-          // Object Storage 실패 시 프록시로 fallback
+          // Object Storage 실패 시 토큰 기반 프록시로 fallback
           const proxyBase = process.env.OBJECT_STORAGE_PROXY_URL;
-          if (proxyBase) {
-            const resp = await fetch(`${proxyBase.replace(/\/$/, "")}/objects/uploads/${filename}`);
-            if (resp.ok) return { buffer: Buffer.from(await resp.arrayBuffer()), ext };
+          const token = process.env.FILE_PROXY_TOKEN;
+          if (proxyBase && token) {
+            const resp = await fetch(`${proxyBase.replace(/\/$/, "")}/api/file-proxy/${encodeURIComponent(filename)}?_fpt=${token}`);
+            if (resp.ok) {
+              const ct = resp.headers.get("content-type") || "";
+              if (!ct.includes("text/html")) return { buffer: Buffer.from(await resp.arrayBuffer()), ext };
+            }
           }
         }
       }
@@ -11022,12 +11059,16 @@ ${htmlDraft}
             const [buffer] = await objectStorageClient.bucket(parts[0]).file(parts.slice(1).join("/")).download();
             return sendBuffer(buffer as Buffer);
           } catch {
-            // Object Storage 실패(Windows 등) → 프록시로 fallback
+            // Object Storage 실패(Windows 등) → 토큰 기반 프록시로 fallback
             const proxyBase = process.env.OBJECT_STORAGE_PROXY_URL;
-            if (proxyBase) {
+            const token = process.env.FILE_PROXY_TOKEN;
+            if (proxyBase && token) {
               try {
-                const resp = await fetch(`${proxyBase.replace(/\/$/, "")}/objects/uploads/${filename}`);
-                if (resp.ok) return sendBuffer(Buffer.from(await resp.arrayBuffer()));
+                const resp = await fetch(`${proxyBase.replace(/\/$/, "")}/api/file-proxy/${encodeURIComponent(filename)}?_fpt=${token}`);
+                if (resp.ok) {
+                  const ct = resp.headers.get("content-type") || "";
+                  if (!ct.includes("text/html")) return sendBuffer(Buffer.from(await resp.arrayBuffer()));
+                }
               } catch { /* 프록시도 실패 */ }
             }
           }

@@ -58,6 +58,9 @@ integrations = ["github:1.0.0", "javascript_openai_ai_integrations:2.0.0", "java
 [userenv.production]
 NODE_ENV = "production"
 
+[userenv.shared]
+FILE_PROXY_TOKEN = "161b67db2e0d26f98aa311561d73ab88153de0118217724d43851f94a9e10cce"
+
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 20000
