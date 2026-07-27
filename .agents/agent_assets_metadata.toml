@@ -18,3 +18,9 @@ id = "XqbEBwwRLqwIJw3pIsK1J"
 uri = "file://patch_claude.cjs"
 type = "unspecified"
 title = "patch_claude.cjs — 노트북 C:\\SafeBoard 에 복사 후 실행"
+
+[[outputs]]
+id = "HLgb22aISp_uKHzp_M8QG"
+uri = "file://sync_from_replit.bat"
+type = "unspecified"
+title = "sync_from_replit.bat — C:\\SafeBoard에 복사 후 사용"
