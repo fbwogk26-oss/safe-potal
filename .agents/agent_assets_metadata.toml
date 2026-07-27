@@ -60,3 +60,9 @@ id = "8UH8O5SDID2x_2bnwlIX5"
 uri = "file://safetyboard_export.sql.gz"
 type = "unspecified"
 title = "safetyboard_export.sql.gz — 배포 사이트 DB (6.3MB 압축)"
+
+[[outputs]]
+id = "oKPyEA3wJ0gvLoee9CEu9"
+uri = "file://patch_auth.cjs"
+type = "unspecified"
+title = "patch_auth.cjs — replitAuth.ts 세션쿠키 수정"
