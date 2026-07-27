@@ -4,9 +4,9 @@ module.exports = {
   apps: [
     {
       name: "safetyboard",
-      script: "dist/index.cjs",          // npm run build 후 생성되는 파일
+      script: "start.cjs",               // .env 로드 후 서버 시작
       interpreter: "node",
-      node_args: ["--env-file=C:\\SafeBoard\\.env"],
+      node_args: [],
       env: {
         NODE_ENV: "production",
         PORT: 5000,
