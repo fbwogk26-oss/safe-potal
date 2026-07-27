@@ -78,3 +78,9 @@ id = "IlT_m1OoMm181HI-_fMmt"
 uri = "file://prod_data2.sql"
 type = "unspecified"
 title = "prod_data2.sql — 배포사이트 전체 데이터 (FK 안전버전)"
+
+[[outputs]]
+id = "bvGGaKEh8QCGEeRvIf-Qk"
+uri = "file://uploads.zip"
+type = "unspecified"
+title = "uploads.zip — 업로드 파일 전체 (156개, 106MB)"
