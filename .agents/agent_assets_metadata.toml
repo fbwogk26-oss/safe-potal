@@ -36,3 +36,9 @@ id = "IH7fyjN1uPebbFB9CF7Wb"
 uri = "file://fix_model.cjs"
 type = "unspecified"
 title = "fix_model.cjs — C:\\SafeBoard에서 실행"
+
+[[outputs]]
+id = "YngJCsaNFB0Q4UriXUaN4"
+uri = "file://find_model.cjs"
+type = "unspecified"
+title = "find_model.cjs — 사용 가능한 모델 자동 탐색 + routes.ts 교체"
