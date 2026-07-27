@@ -339,7 +339,9 @@ export default function SafetyInspections() {
       // 서버는 이미 작업내용 접미사(안전점검/동행점검 등)를 감지해 inspectionType 반환 + workContent에서 접미사 제거
       // 따라서 프론트에서 workContent 재파싱 불필요 — serverType을 기본값으로 활용
       const detectBulkType = (serverType: string, inspector: string): string => {
-        // 1순위: 점검조직유형 컬럼에서 KT 점검 감지 → 항상 유지
+        // 1순위: 원격점검은 항상 유지 (D열 빈칸에서 서버가 감지)
+        if (serverType === '원격점검') return '원격점검';
+        // 2순위: 점검조직유형 컬럼에서 KT 점검 감지 → 항상 유지
         if (serverType === 'KT 점검') return 'KT 점검';
         // 2순위: 점검자 이름 그룹 규칙 (명시적 조직 규칙 우선)
         if (INSPECTOR_HQ_TEAM.includes(inspector)) return '현장경영팀 점검';
@@ -754,8 +756,8 @@ export default function SafetyInspections() {
     // ── 시트 2: 기간별 요약 ───────────────────────────────
     const sumSheet = workbook.addWorksheet('기간별 요약');
     const allInsp = rawInspections || [];
-    const TYPES = ['안전점검', '동행점검', '현장경영팀 점검', '본사 점검', 'KT 점검'];
-    const TYPE_LABELS = ['안전점검', '동행점검', '현장경영팀', '본사', 'KT'];
+    const TYPES = ['안전점검', '동행점검', '현장경영팀 점검', '본사 점검', 'KT 점검', '원격점검'];
+    const TYPE_LABELS = ['안전점검', '동행점검', '현장경영팀', '본사', 'KT', '원격점검'];
     const getInspType = (insp: SafetyInspection) => {
       if (insp.inspectionType === '동행점검') return '동행점검';
       if (insp.inspectionType === '현장경영팀 점검') return '현장경영팀 점검';
@@ -906,11 +908,11 @@ export default function SafetyInspections() {
     const safetyTotal = (safetyBujang + safetyTeamjang) * multiplier;
     const accompanyTotal = (accompanyBujang + accompanyTeamjang) * multiplier;
 
-    const deptMap = new Map<string, { 안전점검: number; 동행점검: number; 현장경영팀: number; 본사: number; KT: number }>();
+    const deptMap = new Map<string, { 안전점검: number; 동행점검: number; 현장경영팀: number; 본사: number; KT: number; 원격점검: number }>();
     for (const dept of allDepts) {
-      deptMap.set(dept, { 안전점검: 0, 동행점검: 0, 현장경영팀: 0, 본사: 0, KT: 0 });
+      deptMap.set(dept, { 안전점검: 0, 동행점검: 0, 현장경영팀: 0, 본사: 0, KT: 0, 원격점검: 0 });
     }
-    let totalSafety = 0, totalAccompany = 0, totalHQ = 0, totalHQ2 = 0, totalKT = 0;
+    let totalSafety = 0, totalAccompany = 0, totalHQ = 0, totalHQ2 = 0, totalKT = 0, totalRemote = 0;
     for (const insp of filtered) {
       const matchedDept = allDepts.find(d => insp.title.startsWith(d) || (insp.department || "").startsWith(d));
       const entry = matchedDept ? deptMap.get(matchedDept) : null;
@@ -918,6 +920,7 @@ export default function SafetyInspections() {
       else if (insp.inspectionType === "현장경영팀 점검") { totalHQ++; if (entry) entry.현장경영팀++; }
       else if (insp.inspectionType === "본사 점검") { totalHQ2++; if (entry) entry.본사++; }
       else if (insp.inspectionType === "KT 점검") { totalKT++; if (entry) entry.KT++; }
+      else if (insp.inspectionType === "원격점검") { totalRemote++; if (entry) entry.원격점검++; }
       else { totalSafety++; if (entry) entry.안전점검++; }
     }
 
@@ -929,15 +932,15 @@ export default function SafetyInspections() {
     const chartData = allDepts.map(dept => {
       const s = deptMap.get(dept)!;
       const shortName = dept.replace("운용팀", "").replace("팀", "");
-      const total = s.안전점검 + s.동행점검 + s.현장경영팀 + s.본사 + s.KT;
+      const total = s.안전점검 + s.동행점검 + s.현장경영팀 + s.본사 + s.KT + s.원격점검;
       const pct = combinedPerDept > 0 ? Math.round(total / combinedPerDept * 100) : null;
-      return { name: shortName, 안전점검: s.안전점검, 동행점검: s.동행점검, 현장경영팀: s.현장경영팀, 본사: s.본사, KT: s.KT, 진행율: pct };
+      return { name: shortName, 안전점검: s.안전점검, 동행점검: s.동행점검, 현장경영팀: s.현장경영팀, 본사: s.본사, KT: s.KT, 원격점검: s.원격점검, 진행율: pct };
     });
 
     const totalTarget = inspectionTargets?.totalTarget || 0;
     return {
       total: filtered.length,
-      totalSafety, totalAccompany, totalHQ, totalHQ2, totalKT,
+      totalSafety, totalAccompany, totalHQ, totalHQ2, totalKT, totalRemote,
       safetyBujang, safetyTeamjang, accompanyBujang, accompanyTeamjang,
       safetyTotal, accompanyTotal, safetyPerDept, accompanyPerDept, combinedPerDept,
       totalTarget,
@@ -1260,6 +1263,14 @@ export default function SafetyInspections() {
                         {inspectionStats.totalKT}<span className="text-xs font-normal ml-0.5">건</span>
                       </p>
                     </div>
+
+                    {/* 원격점검 */}
+                    <div className="rounded-xl p-3 bg-gradient-to-br from-pink-50 to-rose-50 dark:from-pink-950/40 dark:to-rose-950/20 border border-pink-100 dark:border-pink-900/30">
+                      <p className="text-[11px] font-semibold text-pink-600 dark:text-pink-400 mb-1">🖥 원격점검</p>
+                      <p className="text-2xl font-black text-pink-700 dark:text-pink-300" data-testid="text-remote-count">
+                        {inspectionStats.totalRemote}<span className="text-xs font-normal ml-0.5">건</span>
+                      </p>
+                    </div>
                   </div>
 
                   {/* 운용팀별 통합 막대 차트 */}
@@ -1284,8 +1295,11 @@ export default function SafetyInspections() {
                           <Bar dataKey="본사" stackId="a" fill="#8b5cf6" radius={[0,0,0,0]}>
                             <LabelList dataKey="본사" position="inside" style={{ fontSize: 9, fontWeight: 700, fill: "#fff" }} formatter={(v: number) => v > 0 ? v : ""} />
                           </Bar>
-                          <Bar dataKey="KT" stackId="a" fill="#0ea5e9" radius={[4,4,0,0]}>
+                          <Bar dataKey="KT" stackId="a" fill="#0ea5e9" radius={[0,0,0,0]}>
                             <LabelList dataKey="KT" position="inside" style={{ fontSize: 9, fontWeight: 700, fill: "#fff" }} formatter={(v: number) => v > 0 ? v : ""} />
+                          </Bar>
+                          <Bar dataKey="원격점검" stackId="a" fill="#ec4899" radius={[4,4,0,0]}>
+                            <LabelList dataKey="원격점검" position="inside" style={{ fontSize: 9, fontWeight: 700, fill: "#fff" }} formatter={(v: number) => v > 0 ? v : ""} />
                           </Bar>
                         </BarChart>
                       </ResponsiveContainer>

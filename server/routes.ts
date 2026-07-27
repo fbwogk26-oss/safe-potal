@@ -1512,6 +1512,7 @@ export async function registerRoutes(
           const commentCol     = findCol(['점검총평', '총평', '종합의견', '비고']);
           const dateCol        = findCol(['점검일시', '점검일', '일시']);
           const resultCol      = findCol(['점검결과']);
+          const methodCol      = findCol(['점검방법', '점검 방법', '방법']);
           const extractTeam    = (val: string) => val.includes('>') ? val.split('>').pop()!.trim() : val.trim();
           const extractTime    = (val: string) => { const m = val.match(/T?(\d{2}):(\d{2})/); return m ? m[1] + m[2] : ''; };
           // YYYY-MM-DD 또는 YYYY/MM/DD 형식 우선 파싱 (Date객체→String 변환 시 "Thu Jun 12..." 오류 방지)
@@ -1526,7 +1527,7 @@ export async function registerRoutes(
             if (v.includes('동행')) return '동행점검';
             return '안전점검';
           };
-          return { cols, normalize, teamCol, inspectionOrgCol, inspectorCol, workerCol, workContentCol, workTypeCol, workNoCol, locationCol, commentCol, dateCol, resultCol, extractTeam, extractTime, extractDate8, detectInspectionType };
+          return { cols, normalize, teamCol, inspectionOrgCol, inspectorCol, workerCol, workContentCol, workTypeCol, workNoCol, locationCol, commentCol, dateCol, resultCol, methodCol, extractTeam, extractTime, extractDate8, detectInspectionType };
         };
 
         const excelMatcher = buildExcelMatcher(excelData);
@@ -1694,10 +1695,11 @@ export async function registerRoutes(
             let workContent = '', workType = '', inspectorFromExcel = '', workerFromExcel = '';
             let teamFromExcel = '', locationFromExcel = '', overallComment = '', inspectionDateFromExcel = '', workNoFromExcel = '';
             let inspectionTypeFromExcel = '';
+            let methodFromExcel: string | null = null; // null=열없음, ""=빈칸(원격점검), 값있음=현장점검
 
             if (excelMatcher) {
               const { normalize, teamCol, inspectionOrgCol, inspectorCol, workerCol, workContentCol, workTypeCol, workNoCol,
-                      locationCol, commentCol, dateCol, resultCol, extractTeam, extractTime, extractDate8, detectInspectionType } = excelMatcher;
+                      locationCol, commentCol, dateCol, resultCol, methodCol, extractTeam, extractTime, extractDate8, detectInspectionType } = excelMatcher;
               const pdfDate8 = extractDate8(inspectionDate);
               const pdfTime  = extractTime(workDateTime);
               const pdfTeam  = normalize(team);
@@ -1758,6 +1760,8 @@ export async function registerRoutes(
                 if (workNoCol)        workNoFromExcel       = String(matchedRow[workNoCol] || '');
                 if (resultCol)        inspectionResult      = String(matchedRow[resultCol] || '') || inspectionResult;
                 if (inspectionOrgCol) inspectionTypeFromExcel = detectInspectionType(String(matchedRow[inspectionOrgCol] || ''));
+                // D열 점검방법: 열이 존재하면 값을 읽음 (빈칸=""이면 원격점검으로 판별)
+                if (methodCol)        methodFromExcel       = String(matchedRow[methodCol] ?? '').trim();
               }
             }
 
@@ -1836,6 +1840,10 @@ export async function registerRoutes(
                 resolvedInspectionType = found[1]; // 접미사 감지가 최우선
                 resolvedWorkContent = finalWorkContent.slice(0, finalWorkContent.lastIndexOf('(')).trim();
               }
+            }
+            // D열 점검방법이 빈칸이면 원격점검으로 분류 (현장 방문 없이 원격으로 수행)
+            if (methodFromExcel !== null && methodFromExcel === '') {
+              resolvedInspectionType = '원격점검';
             }
 
             return { fileName: f.originalname, inspectionDate, team, location, workDateTime, workNo, workContent: resolvedWorkContent, workType, inspectionMethod, inspectionResult, defectCount, imageUrls, inspector: finalInspector, workerName: workerFromExcel, overallComment, inspectionType: resolvedInspectionType };
