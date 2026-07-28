@@ -876,6 +876,386 @@ export default function SafetyInspections() {
     toast({ title: "엑셀 다운로드 완료" });
   };
 
+  // ══════════════════════════════════════════════════════════════════
+  // 특별안전점검 기간 종합 엑셀 다운로드 (7/9 ~ 8/5)
+  // ══════════════════════════════════════════════════════════════════
+  const handleSpecialPeriodDownload = async () => {
+    if (!rawInspections || !teams) {
+      toast({ variant: "destructive", title: "데이터를 불러오는 중입니다. 잠시 후 다시 시도해주세요." });
+      return;
+    }
+    toast({ title: "특별점검 종합 엑셀 생성 중..." });
+
+    const PERIOD_START = "2025-07-09";
+    const PERIOD_END   = "2025-08-05";
+    const PERIOD_LABEL = "2025. 7. 9(수) ~ 2025. 8. 5(화)";
+
+    // 영업일(월~금) 목록 생성
+    const workingDays: string[] = [];
+    const allCalDays: string[] = [];
+    const cur = new Date(PERIOD_START + "T00:00:00");
+    const endD = new Date(PERIOD_END + "T00:00:00");
+    while (cur <= endD) {
+      const s = format(cur, "yyyy-MM-dd");
+      allCalDays.push(s);
+      const dow = cur.getDay();
+      if (dow !== 0 && dow !== 6) workingDays.push(s);
+      cur.setDate(cur.getDate() + 1);
+    }
+    const WD = workingDays.length; // 영업일수
+
+    // 기간 내 점검 데이터
+    const periodInsp = rawInspections.filter(
+      i => i.inspectionDate >= PERIOD_START && i.inspectionDate <= PERIOD_END
+    );
+    const allDepts = teams.map(t => t.name);
+
+    const matchDept = (insp: (typeof rawInspections)[0], dept: string) =>
+      insp.title.startsWith(dept) || ((insp as any).department || "").startsWith(dept);
+
+    // 부서별 통계
+    const deptStats = allDepts.map(dept => {
+      const onsite = periodInsp.filter(i => matchDept(i, dept) && i.inspectionType !== "원격점검");
+      const remote = periodInsp.filter(i => matchDept(i, dept) && i.inspectionType === "원격점검");
+      const rate = WD > 0 ? Math.round(onsite.length / WD * 100) : 0;
+      return { dept, target: WD, onsite: onsite.length, remote: remote.length, rate };
+    });
+
+    const wb = new ExcelJS.Workbook();
+    wb.creator = "SafetyBoard";
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // Sheet 1: 종합표 + 그래프
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    const ws1 = wb.addWorksheet("종합표");
+    ws1.getColumn(1).width = 22;
+    ws1.getColumn(2).width = 12;
+    ws1.getColumn(3).width = 14;
+    ws1.getColumn(4).width = 16;
+    ws1.getColumn(5).width = 16;
+    ws1.getColumn(6).width = 14;
+    ws1.getColumn(7).width = 38;
+
+    const NC = 7; // 총 열 수
+    const merge7 = (row: ExcelJS.Row) => ws1.mergeCells(`A${row.number}:G${row.number}`);
+    const border = (row: ExcelJS.Row, cols = NC, style: ExcelJS.BorderStyle = "thin") => {
+      for (let c = 1; c <= cols; c++)
+        row.getCell(c).border = { top: { style }, left: { style }, bottom: { style }, right: { style } };
+    };
+
+    // ▶ 제목
+    const r1 = ws1.addRow(["🔴 특별안전점검 기간 종합 현황"]);
+    merge7(r1);
+    Object.assign(r1.getCell(1), {
+      font: { bold: true, size: 16, color: { argb: "FFFFFFFF" } },
+      fill: { type: "pattern", pattern: "solid", fgColor: { argb: "FFC0392B" } },
+      alignment: { horizontal: "center", vertical: "middle" },
+    });
+    r1.height = 40;
+
+    const r2 = ws1.addRow([`📅 점검기간: ${PERIOD_LABEL}     🎯 목표: 부서별 매일 1건 이상 (원격입회 제외)     📆 영업일수: ${WD}일`]);
+    merge7(r2);
+    Object.assign(r2.getCell(1), {
+      font: { bold: true, size: 11, color: { argb: "FF7F1D1D" } },
+      fill: { type: "pattern", pattern: "solid", fgColor: { argb: "FFFEF2F2" } },
+      alignment: { horizontal: "center", vertical: "middle" },
+    });
+    r2.height = 28;
+    ws1.addRow([]);
+
+    // ▶ 종합표 헤더
+    const hdr = ws1.addRow(["부서명", "영업일수", "목표건수\n(1건/일)", "현장점검건수\n(원격입회 제외)", "목표대비\n점검율", "원격입회\n건수(별도)", "이행율 시각화"]);
+    hdr.height = 42;
+    hdr.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 10 };
+    hdr.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1A3C6E" } };
+    hdr.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+    border(hdr, NC, "medium");
+
+    // ▶ 부서별 데이터
+    deptStats.forEach((s, idx) => {
+      const filled = Math.min(Math.round(s.rate / 5), 20);
+      const bar = "█".repeat(filled) + "░".repeat(20 - filled) + `  ${s.rate}%`;
+      const dr = ws1.addRow([s.dept, WD, s.target, s.onsite, `${s.rate}%`, s.remote, bar]);
+      dr.height = 22;
+      dr.alignment = { horizontal: "center", vertical: "middle" };
+      dr.getCell(1).alignment = { horizontal: "left", vertical: "middle" };
+
+      // 점검율 색상
+      const rateCell = dr.getCell(5);
+      if (s.rate >= 100) {
+        rateCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFC6EFCE" } };
+        rateCell.font = { bold: true, color: { argb: "FF006100" } };
+      } else if (s.rate >= 70) {
+        rateCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFEB9C" } };
+        rateCell.font = { bold: true, color: { argb: "FF9C6500" } };
+      } else {
+        rateCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFC7CE" } };
+        rateCell.font = { bold: true, color: { argb: "FF9C0006" } };
+      }
+
+      // 바 셀 색상
+      const barArgb = s.rate >= 100 ? "FF006100" : s.rate >= 70 ? "FF9C6500" : "FF9C0006";
+      dr.getCell(7).font = { name: "Courier New", size: 9, color: { argb: barArgb } };
+
+      // 교대 배경
+      if (idx % 2 !== 0) {
+        for (let c = 1; c <= 6; c++) {
+          const cell = dr.getCell(c);
+          if (!(cell.fill as ExcelJS.FillPattern)?.fgColor?.argb)
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF8F9FA" } };
+        }
+      }
+      border(dr);
+    });
+
+    // ▶ 합계 행
+    const sumOnsite = deptStats.reduce((a, s) => a + s.onsite, 0);
+    const sumRemote = deptStats.reduce((a, s) => a + s.remote, 0);
+    const sumTarget = deptStats.reduce((a, s) => a + s.target, 0);
+    const sumRate   = sumTarget > 0 ? Math.round(sumOnsite / sumTarget * 100) : 0;
+    const sumBar    = "█".repeat(Math.min(Math.round(sumRate / 5), 20)) + "░".repeat(Math.max(0, 20 - Math.min(Math.round(sumRate / 5), 20))) + `  ${sumRate}%`;
+    const totRow = ws1.addRow(["합  계", WD, sumTarget, sumOnsite, `${sumRate}%`, sumRemote, sumBar]);
+    totRow.font = { bold: true, size: 11 };
+    totRow.height = 26;
+    totRow.alignment = { horizontal: "center", vertical: "middle" };
+    totRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFD6EAF8" } };
+    totRow.getCell(7).font = { name: "Courier New", size: 9, bold: true, color: { argb: sumRate >= 100 ? "FF006100" : sumRate >= 70 ? "FF9C6500" : "FF9C0006" } };
+    border(totRow, NC, "medium");
+
+    // ▶ 주석
+    ws1.addRow([]);
+    const noteRow = ws1.addRow(["※ 원격입회 건수는 현장점검건수 및 목표 달성 산정에서 제외하고 별도 표기함"]);
+    merge7(noteRow);
+    noteRow.getCell(1).font = { italic: true, size: 9, color: { argb: "FF555555" } };
+    noteRow.getCell(1).alignment = { horizontal: "left" };
+
+    // ━━ 그래프 섹션 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    ws1.addRow([]);
+    ws1.addRow([]);
+
+    const gTitle = ws1.addRow(["📊 부서별 현장점검 이행율 그래프  (목표: 100%, 기준일 " + format(new Date(), "M월 d일") + " 현재)"]);
+    merge7(gTitle);
+    Object.assign(gTitle.getCell(1), {
+      font: { bold: true, size: 12, color: { argb: "FFFFFFFF" } },
+      fill: { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E40AF" } },
+      alignment: { horizontal: "center", vertical: "middle" },
+    });
+    gTitle.height = 30;
+
+    // 눈금 헤더 (0% ~ 100%)
+    // 막대 구역: 컬럼 B~F 5칸 → 각 20%씩, G에 수치
+    const scHdr = ws1.addRow(["부서명", "0%", "20%", "40%", "60%", "80%", "100% 달성률"]);
+    scHdr.height = 22;
+    scHdr.font = { bold: true, size: 9, color: { argb: "FFFFFFFF" } };
+    scHdr.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF374151" } };
+    scHdr.alignment = { horizontal: "center", vertical: "middle" };
+    border(scHdr, NC);
+
+    // 그래프 행 (5개 셀 = 5 × 20% 구간)
+    deptStats.forEach((s, idx) => {
+      const gr = ws1.addRow([s.dept.replace("운용팀", "팀")]);
+      gr.height = 26;
+      gr.getCell(1).alignment = { horizontal: "left", vertical: "middle" };
+      gr.getCell(1).font = { size: 9 };
+      gr.getCell(1).border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
+
+      const barArgb = s.rate >= 100 ? "FF1D8348" : s.rate >= 70 ? "FFF39C12" : "FFC0392B";
+      const bgAlt   = idx % 2 === 0 ? "FFFFFFFF" : "FFF0F4F8";
+
+      // 5 구간 셀: col 2~6
+      for (let seg = 0; seg < 5; seg++) {
+        const segMax = (seg + 1) * 20; // 이 구간의 상단 %
+        const segMin = seg * 20;
+        const cell = gr.getCell(seg + 2);
+        cell.alignment = { horizontal: "center", vertical: "middle" };
+        cell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
+        if (s.rate >= segMax) {
+          // 완전히 채워진 구간
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: barArgb } };
+          cell.value = "";
+        } else if (s.rate > segMin) {
+          // 부분적으로 채워진 구간 — 진행중 표시
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: s.rate >= 100 ? "FF6BCB77" : s.rate >= 70 ? "FFFCBF49" : "FFFF8080" } };
+          cell.value = `${s.rate}%`;
+          cell.font = { bold: true, size: 8, color: { argb: "FF111111" } };
+        } else {
+          // 빈 구간
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bgAlt } };
+        }
+      }
+
+      // 수치 셀 (col 7)
+      const pctCell = gr.getCell(7);
+      pctCell.value = `${s.rate}%`;
+      pctCell.font = { bold: true, size: 10, color: { argb: s.rate >= 100 ? "FF006100" : s.rate >= 70 ? "FF9C6500" : "FF9C0006" } };
+      pctCell.alignment = { horizontal: "center", vertical: "middle" };
+      pctCell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
+
+      // 부서명 배경
+      gr.getCell(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: bgAlt } };
+    });
+
+    // 범례
+    ws1.addRow([]);
+    const lgRow = ws1.addRow(["🟩 100% 이상 달성  |  🟨 70~99% 달성  |  🟥 70% 미만  |  각 구간 = 20%p"]);
+    merge7(lgRow);
+    lgRow.getCell(1).font = { italic: true, size: 9, color: { argb: "FF444444" } };
+    lgRow.getCell(1).alignment = { horizontal: "center" };
+
+    ws1.views = [{ state: "frozen", ySplit: 1 }];
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // Sheet 2: 일자별 부서 현황
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    const ws2 = wb.addWorksheet("일자별현황");
+    ws2.getColumn(1).width = 13;
+    allDepts.forEach((_, i) => { ws2.getColumn(i + 2).width = 11; });
+    ws2.getColumn(allDepts.length + 2).width = 10;
+
+    const NC2 = allDepts.length + 2;
+    const merge2 = (row: ExcelJS.Row) =>
+      ws2.mergeCells(`A${row.number}:${String.fromCharCode(64 + NC2)}${row.number}`);
+    const border2 = (row: ExcelJS.Row, style: ExcelJS.BorderStyle = "thin") => {
+      for (let c = 1; c <= NC2; c++)
+        row.getCell(c).border = { top: { style }, left: { style }, bottom: { style }, right: { style } };
+    };
+
+    const d1 = ws2.addRow([`📅 특별안전점검 일자별 현황  (${PERIOD_LABEL})`]);
+    merge2(d1);
+    Object.assign(d1.getCell(1), {
+      font: { bold: true, size: 13, color: { argb: "FFFFFFFF" } },
+      fill: { type: "pattern", pattern: "solid", fgColor: { argb: "FF0F5132" } },
+      alignment: { horizontal: "center", vertical: "middle" },
+    });
+    d1.height = 34;
+
+    const d2 = ws2.addRow([`🎯 목표: 부서별 매일 1건 이상  |  🟩 달성(1건이상)  🟥 미시행  |  괄호 안 숫자 = 원격입회(별도)`]);
+    merge2(d2);
+    Object.assign(d2.getCell(1), {
+      font: { italic: true, size: 9, color: { argb: "FF0F5132" } },
+      fill: { type: "pattern", pattern: "solid", fgColor: { argb: "FFD1FAE5" } },
+      alignment: { horizontal: "center", vertical: "middle" },
+    });
+    d2.height = 22;
+    ws2.addRow([]);
+
+    const dhdr = ws2.addRow(["날짜(요일)", ...allDepts.map(d => d.replace("운용팀", "팀")), "일합계"]);
+    dhdr.height = 36;
+    dhdr.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 9 };
+    dhdr.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0F5132" } };
+    dhdr.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+    border2(dhdr, "medium");
+
+    const DAY_KR = ["일", "월", "화", "수", "목", "금", "토"];
+
+    workingDays.forEach((dateStr, wdIdx) => {
+      const dow = new Date(dateStr + "T00:00:00").getDay();
+      const label = `${dateStr.slice(5)}(${DAY_KR[dow]})`;
+
+      const deptVals = allDepts.map(dept => {
+        const ons = periodInsp.filter(i => i.inspectionDate === dateStr && matchDept(i, dept) && i.inspectionType !== "원격점검").length;
+        const rem = periodInsp.filter(i => i.inspectionDate === dateStr && matchDept(i, dept) && i.inspectionType === "원격점검").length;
+        return { ons, rem };
+      });
+
+      const dayTotal = deptVals.reduce((a, d) => a + d.ons, 0);
+      const rowVals  = deptVals.map(d => d.rem > 0 ? (d.ons > 0 ? `${d.ons}(${d.rem})` : `(${d.rem})`) : (d.ons > 0 ? d.ons : ""));
+
+      const dr = ws2.addRow([label, ...rowVals, dayTotal]);
+      dr.height = 19;
+      dr.alignment = { horizontal: "center", vertical: "middle" };
+      dr.getCell(1).font = { size: 9 };
+
+      const altBg = wdIdx % 2 !== 0 ? "FFF0F4F8" : "FFFFFFFF";
+
+      // 부서별 셀 색상
+      deptVals.forEach(({ ons, rem }, dIdx) => {
+        const cell = dr.getCell(dIdx + 2);
+        cell.font = { size: 9 };
+        if (ons >= 1) {
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFC6EFCE" } };
+          cell.font = { bold: true, size: 9, color: { argb: "FF006100" } };
+        } else if (rem > 0) {
+          // 원격만 있음
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFE0CC" } };
+          cell.font = { size: 9, color: { argb: "FF7B3F00" }, italic: true };
+        } else {
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFC7CE" } };
+          cell.font = { size: 9, color: { argb: "FF9C0006" } };
+        }
+      });
+
+      // 날짜 셀
+      dr.getCell(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: altBg } };
+
+      // 일합계 셀
+      const totCell = dr.getCell(NC2);
+      totCell.font = { bold: true, size: 9 };
+      if (dayTotal >= allDepts.length) {
+        totCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFC6EFCE" } };
+        totCell.font = { bold: true, size: 9, color: { argb: "FF006100" } };
+      } else if (dayTotal > 0) {
+        totCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFEB9C" } };
+        totCell.font = { bold: true, size: 9, color: { argb: "FF9C6500" } };
+      } else {
+        totCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFC7CE" } };
+        totCell.font = { bold: true, size: 9, color: { argb: "FF9C0006" } };
+      }
+
+      border2(dr);
+    });
+
+    // 기간 합계 행
+    const periodTotVals = allDepts.map(dept => {
+      const ons = periodInsp.filter(i => matchDept(i, dept) && i.inspectionType !== "원격점검").length;
+      const rem = periodInsp.filter(i => matchDept(i, dept) && i.inspectionType === "원격점검").length;
+      return rem > 0 ? `${ons}(${rem})` : ons;
+    });
+    const ptRow = ws2.addRow(["기간 합계", ...periodTotVals, periodInsp.filter(i => i.inspectionType !== "원격점검").length]);
+    ptRow.font = { bold: true, size: 10 };
+    ptRow.height = 26;
+    ptRow.alignment = { horizontal: "center", vertical: "middle" };
+    ptRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFD6EAF8" } };
+    border2(ptRow, "medium");
+
+    // 목표 달성률 행
+    const pctVals = deptStats.map(s => `${s.rate}%`);
+    const overallPct = sumTarget > 0 ? Math.round(sumOnsite / sumTarget * 100) : 0;
+    const prRow = ws2.addRow(["목표달성률(%)", ...pctVals, `${overallPct}%`]);
+    prRow.height = 22;
+    prRow.alignment = { horizontal: "center", vertical: "middle" };
+    prRow.font = { bold: true, size: 9 };
+    deptStats.forEach((s, dIdx) => {
+      const cell = prRow.getCell(dIdx + 2);
+      if (s.rate >= 100) {
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFC6EFCE" } };
+        cell.font = { bold: true, size: 9, color: { argb: "FF006100" } };
+      } else if (s.rate >= 70) {
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFEB9C" } };
+        cell.font = { bold: true, size: 9, color: { argb: "FF9C6500" } };
+      } else {
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFC7CE" } };
+        cell.font = { bold: true, size: 9, color: { argb: "FF9C0006" } };
+      }
+    });
+    prRow.getCell(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE8F4FD" } };
+    prRow.getCell(NC2).font = { bold: true, size: 9, color: { argb: overallPct >= 100 ? "FF006100" : overallPct >= 70 ? "FF9C6500" : "FF9C0006" } };
+    border2(prRow, "medium");
+
+    ws2.views = [{ state: "frozen", ySplit: 4 }];
+
+    // ━━ 다운로드 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    const buf  = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href = url;
+    a.download = `특별안전점검_종합현황_${format(new Date(), "yyyyMMdd")}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: "특별점검 종합 엑셀 다운로드 완료 ✅" });
+  };
+
   const goodCount = checklist.filter(c => c.status === '양호').length;
   const poorCount = checklist.filter(c => c.status === '미흡').length;
   const totalCount = checklist.length;
@@ -1064,7 +1444,7 @@ export default function SafetyInspections() {
                       <ChevronDown className="w-3 h-3" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-52">
+                  <DropdownMenuContent align="end" className="w-60">
                     <DropdownMenuItem onClick={() => handleExcelDownload(true)} data-testid="button-excel-with-photos">
                       <Download className="w-4 h-4 mr-2 text-blue-500" />
                       <div>
@@ -1078,6 +1458,14 @@ export default function SafetyInspections() {
                       <div>
                         <div className="font-medium">빠른 다운로드</div>
                         <div className="text-xs text-muted-foreground">사진 제외, 즉시 완료</div>
+                      </div>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={handleSpecialPeriodDownload}>
+                      <BarChart3 className="w-4 h-4 mr-2 text-red-500" />
+                      <div>
+                        <div className="font-medium text-red-600">특별점검 종합현황</div>
+                        <div className="text-xs text-muted-foreground">7/9~8/5 부서별 이행율 + 그래프</div>
                       </div>
                     </DropdownMenuItem>
                   </DropdownMenuContent>
