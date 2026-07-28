@@ -1312,7 +1312,8 @@ export default function SafetyInspections() {
       pctVals2.push(""); // 원격 열: 비워둠
     });
     // 전체 달성률
-    pctVals2.push({ formula: `IF(${WD * allDepts.length}>0,${colLetterWide(NC2)}${ptRow.number}/${WD * allDepts.length},0)`, result: sumOnsite / (WD * allDepts.length) });
+    const sumTotal = deptStats.reduce((a, s) => a + s.total, 0);
+    pctVals2.push({ formula: `IF(${WD * allDepts.length}>0,${colLetterWide(NC2)}${ptRow.number}/${WD * allDepts.length},0)`, result: sumTotal / (WD * allDepts.length) });
     const prRow = ws2.addRow(pctVals2);
     prRow.height = 22;
     prRow.alignment = { horizontal:"center", vertical:"middle" };
