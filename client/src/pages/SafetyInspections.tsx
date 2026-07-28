@@ -153,6 +153,11 @@ export default function SafetyInspections() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [showReportDialog, setShowReportDialog] = useState(false);
+  const [reportStartDate, setReportStartDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [reportEndDate, setReportEndDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [reportTitle, setReportTitle] = useState("특별안전점검");
+  const [reportIsGenerating, setReportIsGenerating] = useState(false);
 
   const bulkDeleteMutation = useMutation({
     mutationFn: (ids: number[]) => apiRequest("POST", "/api/safety-inspections/bulk-delete", { ids }),
@@ -880,17 +885,22 @@ export default function SafetyInspections() {
   // 특별안전점검 기간 종합 엑셀 다운로드 (7/9 ~ 8/5)
   // 안전점검 / 동행점검 / 원격점검 분리 + 수식 자동계산
   // ══════════════════════════════════════════════════════════════════
-  const handleSpecialPeriodDownload = async () => {
+  const handleSpecialPeriodDownload = async (startDate: string, endDate: string, title: string) => {
     if (!rawInspections || !teams) {
       toast({ variant: "destructive", title: "데이터를 불러오는 중입니다. 잠시 후 다시 시도해주세요." });
       return;
     }
-    toast({ title: "특별점검 종합 엑셀 생성 중..." });
+    toast({ title: "보고서 엑셀 생성 중..." });
 
     // ── 상수 ──────────────────────────────────────────────────────
-    const PERIOD_START = "2026-07-09";
-    const PERIOD_END   = "2026-08-05";
-    const PERIOD_LABEL = "2026. 7. 9(목) ~ 2026. 8. 5(수)";
+    const PERIOD_START = startDate;
+    const PERIOD_END   = endDate;
+    const DAY_KR_LABEL = ["일","월","화","수","목","금","토"];
+    const fmtDateLabel = (d: string) => {
+      const dt = new Date(d + "T00:00:00");
+      return `${dt.getFullYear()}. ${dt.getMonth()+1}. ${dt.getDate()}(${DAY_KR_LABEL[dt.getDay()]})`;
+    };
+    const PERIOD_LABEL = `${fmtDateLabel(PERIOD_START)} ~ ${fmtDateLabel(PERIOD_END)}`;
     const TODAY_LABEL  = format(new Date(), "yyyy. M. d") + " 현재";
 
     // ── 영업일(월~금) 목록 ────────────────────────────────────────
@@ -1703,11 +1713,11 @@ export default function SafetyInspections() {
                       </div>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={handleSpecialPeriodDownload}>
+                    <DropdownMenuItem onClick={() => setShowReportDialog(true)}>
                       <BarChart3 className="w-4 h-4 mr-2 text-red-500" />
                       <div>
-                        <div className="font-medium text-red-600">특별점검 종합현황</div>
-                        <div className="text-xs text-muted-foreground">7/9~8/5 부서별 이행율 + 그래프</div>
+                        <div className="font-medium text-red-600">기간별 보고서 다운로드</div>
+                        <div className="text-xs text-muted-foreground">기간 선택 → 종합표·일자별·추이 엑셀</div>
                       </div>
                     </DropdownMenuItem>
                   </DropdownMenuContent>
@@ -2768,6 +2778,104 @@ export default function SafetyInspections() {
           </Button>
         </div>
       )}
+
+      {/* ── 기간별 보고서 다운로드 다이얼로그 ── */}
+      <Dialog open={showReportDialog} onOpenChange={setShowReportDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <BarChart3 className="w-5 h-5" />
+              기간별 보고서 다운로드
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-2">
+            {/* 보고서 제목 */}
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">보고서 제목</Label>
+              <Input
+                value={reportTitle}
+                onChange={e => setReportTitle(e.target.value)}
+                placeholder="예: 특별안전점검, 하계점검 등"
+              />
+            </div>
+
+            {/* 기간 선택 */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">시작일</Label>
+                <Input
+                  type="date"
+                  value={reportStartDate}
+                  onChange={e => setReportStartDate(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">종료일</Label>
+                <Input
+                  type="date"
+                  value={reportEndDate}
+                  onChange={e => setReportEndDate(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* 영업일 미리보기 */}
+            {reportStartDate && reportEndDate && reportStartDate <= reportEndDate && (() => {
+              let wd = 0;
+              const c = new Date(reportStartDate + "T00:00:00");
+              const e = new Date(reportEndDate + "T00:00:00");
+              while (c <= e) { const d = c.getDay(); if (d !== 0 && d !== 6) wd++; c.setDate(c.getDate() + 1); }
+              return (
+                <div className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">
+                  📅 영업일(월~금): <span className="font-semibold text-foreground">{wd}일</span>
+                  &nbsp;·&nbsp; 목표건수: <span className="font-semibold text-foreground">{wd * 7}건</span>
+                  <span className="text-xs ml-1">(7개 부서 × {wd}일)</span>
+                </div>
+              );
+            })()}
+
+            {/* 유효성 경고 */}
+            {reportStartDate > reportEndDate && (
+              <p className="text-xs text-red-500">⚠ 시작일이 종료일보다 늦습니다.</p>
+            )}
+
+            <div className="flex gap-2 pt-2">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setShowReportDialog(false)}
+              >
+                취소
+              </Button>
+              <Button
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white gap-2"
+                disabled={
+                  reportIsGenerating ||
+                  !reportStartDate ||
+                  !reportEndDate ||
+                  reportStartDate > reportEndDate
+                }
+                onClick={async () => {
+                  setReportIsGenerating(true);
+                  try {
+                    await handleSpecialPeriodDownload(reportStartDate, reportEndDate, reportTitle);
+                    setShowReportDialog(false);
+                  } finally {
+                    setReportIsGenerating(false);
+                  }
+                }}
+              >
+                {reportIsGenerating ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> 생성 중...</>
+                ) : (
+                  <><Download className="w-4 h-4" /> 엑셀 다운로드</>
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
