@@ -1240,11 +1240,13 @@ export default function SafetyInspections() {
         remote: periodInsp.filter(i => i.inspectionDate === dateStr && matchDept(i, dept) && i.inspectionType === "원격점검").length,
       }));
 
-      const dayOnsite = deptData.reduce((a, d) => a + d.safe + d.accomp, 0);
-
-      const rowVals: (string | number)[] = [label];
+      const rowVals: (string | number | { formula: string })[] = [label];
       deptData.forEach(d => { rowVals.push(d.safe || ""); rowVals.push(d.accomp || ""); rowVals.push(d.remote || ""); });
-      rowVals.push(dayOnsite);
+      // 합계 열: SUM(B~NC2-1) 수식으로 전체 유형 합산
+      const nextRn = ws2.rowCount + 1;
+      const firstDataCol = colLetterWide(2);
+      const lastDataCol  = colLetterWide(NC2 - 1);
+      rowVals.push({ formula: `SUM(${firstDataCol}${nextRn}:${lastDataCol}${nextRn})` });
 
       const dr = ws2.addRow(rowVals);
       dr.height = 18;
@@ -1254,30 +1256,29 @@ export default function SafetyInspections() {
       dr.getCell(1).fill = { type:"pattern", pattern:"solid", fgColor:{ argb: altBg } };
 
       deptData.forEach((d, di) => {
-        const onsite = d.safe + d.accomp;
+        const onsite = d.safe + d.accomp + d.remote;
         const cSafe   = dr.getCell(2 + di * DEPT_COLS + 0);
         const cAccomp = dr.getCell(2 + di * DEPT_COLS + 1);
         const cRemote = dr.getCell(2 + di * DEPT_COLS + 2);
 
-        // 배경: 목표달성 여부로 칸 전체 채색
-        if (onsite >= 1) {
-          applyFill(cSafe,   "FFC6EFCE"); cSafe.font   = { bold: d.safe > 0,   size:9, color:{ argb:"FF006100" } };
-          applyFill(cAccomp, "FFC6EFCE"); cAccomp.font = { bold: d.accomp > 0, size:9, color:{ argb:"FF006100" } };
-        } else {
-          applyFill(cSafe,   "FFFFC7CE"); cSafe.font   = { size:9, color:{ argb:"FF9C0006" } };
-          applyFill(cAccomp, "FFFFC7CE"); cAccomp.font = { size:9, color:{ argb:"FF9C0006" } };
-        }
-        // 원격은 항상 별도 색
-        applyFill(cRemote, d.remote > 0 ? "FFE9D5FF" : altBg);
-        cRemote.font = { size:9, color:{ argb: d.remote > 0 ? "FF5B21B6" : "FFAAAAAA" }, italic: d.remote > 0 };
+        // 안전점검 색
+        applyFill(cSafe, d.safe > 0 ? "FFE8F0FE" : altBg);
+        cSafe.font = { size:9, color:{ argb: d.safe > 0 ? "FF1A3C6E" : "FFAAAAAA" }, bold: d.safe > 0 };
+        // 동행점검 색
+        applyFill(cAccomp, d.accomp > 0 ? "FFE6F4EA" : altBg);
+        cAccomp.font = { size:9, color:{ argb: d.accomp > 0 ? "FF137333" : "FFAAAAAA" }, bold: d.accomp > 0 };
+        // 원격점검 색
+        applyFill(cRemote, d.remote > 0 ? "FFF3E8FD" : altBg);
+        cRemote.font = { size:9, color:{ argb: d.remote > 0 ? "FF6A0DAD" : "FFAAAAAA" }, bold: d.remote > 0 };
       });
 
-      // 합계 셀
+      // 합계 셀 색상
       const totCell = dr.getCell(NC2);
+      const dayTotal = deptData.reduce((a, d) => a + d.safe + d.accomp + d.remote, 0);
       totCell.font = { bold:true, size:9 };
-      if (dayOnsite >= allDepts.length) {
+      if (dayTotal >= allDepts.length) {
         applyFill(totCell, "FFC6EFCE"); totCell.font = { bold:true, size:9, color:{ argb:"FF006100" } };
-      } else if (dayOnsite > 0) {
+      } else if (dayTotal > 0) {
         applyFill(totCell, "FFFFEB9C"); totCell.font = { bold:true, size:9, color:{ argb:"FF9C6500" } };
       } else {
         applyFill(totCell, "FFFFC7CE"); totCell.font = { bold:true, size:9, color:{ argb:"FF9C0006" } };
@@ -1300,25 +1301,49 @@ export default function SafetyInspections() {
     for (let c = 1; c <= NC2; c++) applyFill(ptRow.getCell(c), "FFD6EAF8");
     bdr2(ptRow, "medium");
 
-    // ▶ 목표달성률 행 (수식: 각 부서 소계 / 목표건수)
+    // ▶ 목표건수 행
+    const tgtVals2: (string | number)[] = ["목표건수"];
+    allDepts.forEach(() => { tgtVals2.push(WD); tgtVals2.push(""); tgtVals2.push(""); });
+    tgtVals2.push(WD * allDepts.length); // 전체 목표
+    const tgtRow = ws2.addRow(tgtVals2);
+    tgtRow.font = { bold:true, size:9 };
+    tgtRow.height = 20;
+    tgtRow.alignment = { horizontal:"center", vertical:"middle" };
+    for (let c = 1; c <= NC2; c++) applyFill(tgtRow.getCell(c), "FFFFF2CC");
+    // 부서별 3열 병합
+    allDepts.forEach((_, di) => {
+      ws2.mergeCells(`${colLetterWide(2 + di * DEPT_COLS)}${tgtRow.number}:${colLetterWide(2 + di * DEPT_COLS + 2)}${tgtRow.number}`);
+    });
+    bdr2(tgtRow, "medium");
+
+    // ▶ 목표달성률 행 (수식: 기간합계 / 목표건수)
     const pctVals2: (string | { formula: string; result: number })[] = ["목표달성률"];
+    const sumRow  = ptRow.number;
+    const tgtRn   = tgtRow.number;
     allDepts.forEach((_, di) => {
       const cSafe   = colLetterWide(2 + di * DEPT_COLS + 0);
       const cAccomp = colLetterWide(2 + di * DEPT_COLS + 1);
-      const sumRow  = ptRow.number;
-      // 소계 수식
-      pctVals2.push({ formula: `IF(${WD}>0,(${cSafe}${sumRow}+${cAccomp}${sumRow})/${WD},0)`, result: deptStats[di].rate / 100 });
-      pctVals2.push(""); // 동행 열: 비워둠
-      pctVals2.push(""); // 원격 열: 비워둠
+      const cRemote = colLetterWide(2 + di * DEPT_COLS + 2);
+      const tgtCell = colLetterWide(2 + di * DEPT_COLS);
+      // 안전+동행+원격 합계 / 목표건수
+      pctVals2.push({
+        formula: `IF(${tgtCell}${tgtRn}>0,(${cSafe}${sumRow}+${cAccomp}${sumRow}+${cRemote}${sumRow})/${tgtCell}${tgtRn},0)`,
+        result: WD > 0 ? deptStats[di].total / WD : 0
+      });
+      pctVals2.push(""); // 동행 열
+      pctVals2.push(""); // 원격 열
     });
-    // 전체 달성률
+    // 전체 달성률: 기간합계 마지막 열 / 전체 목표건수
     const sumTotal = deptStats.reduce((a, s) => a + s.total, 0);
-    pctVals2.push({ formula: `IF(${WD * allDepts.length}>0,${colLetterWide(NC2)}${ptRow.number}/${WD * allDepts.length},0)`, result: sumTotal / (WD * allDepts.length) });
+    pctVals2.push({
+      formula: `IF(${colLetterWide(NC2)}${tgtRn}>0,${colLetterWide(NC2)}${sumRow}/${colLetterWide(NC2)}${tgtRn},0)`,
+      result: (WD * allDepts.length) > 0 ? sumTotal / (WD * allDepts.length) : 0
+    });
     const prRow = ws2.addRow(pctVals2);
     prRow.height = 22;
     prRow.alignment = { horizontal:"center", vertical:"middle" };
     prRow.font = { bold:true, size:9 };
-    // 달성률 셀 서식 + 색상 (부서당 첫 번째 열)
+    // 달성률 셀 서식 + 색상 (부서당 첫 번째 열, 3열 병합)
     allDepts.forEach((_, di) => {
       const cell = prRow.getCell(2 + di * DEPT_COLS);
       cell.numFmt = "0%";
@@ -1326,11 +1351,15 @@ export default function SafetyInspections() {
       if (r >= 100) { applyFill(cell, "FFC6EFCE"); cell.font = { bold:true, size:9, color:{ argb:"FF006100" } }; }
       else if (r >= 70) { applyFill(cell, "FFFFEB9C"); cell.font = { bold:true, size:9, color:{ argb:"FF9C6500" } }; }
       else { applyFill(cell, "FFFFC7CE"); cell.font = { bold:true, size:9, color:{ argb:"FF9C0006" } }; }
-      // 동행/원격 열 병합
       ws2.mergeCells(`${colLetterWide(2 + di * DEPT_COLS)}${prRow.number}:${colLetterWide(2 + di * DEPT_COLS + 2)}${prRow.number}`);
     });
     applyFill(prRow.getCell(1), "FFE8F4FD");
-    prRow.getCell(NC2).numFmt = "0%";
+    const totPctCell = prRow.getCell(NC2);
+    totPctCell.numFmt = "0%";
+    const overallRate = (WD * allDepts.length) > 0 ? Math.round(sumTotal / (WD * allDepts.length) * 100) : 0;
+    if (overallRate >= 100) { applyFill(totPctCell, "FFC6EFCE"); totPctCell.font = { bold:true, size:9, color:{ argb:"FF006100" } }; }
+    else if (overallRate >= 70) { applyFill(totPctCell, "FFFFEB9C"); totPctCell.font = { bold:true, size:9, color:{ argb:"FF9C6500" } }; }
+    else { applyFill(totPctCell, "FFFFC7CE"); totPctCell.font = { bold:true, size:9, color:{ argb:"FF9C0006" } }; }
     bdr2(prRow, "medium");
 
     ws2.views = [{ state:"frozen", xSplit:1, ySplit:6 }];
@@ -1357,16 +1386,23 @@ export default function SafetyInspections() {
       alignment: { horizontal:"center", vertical:"middle" },
     });
 
-    const t2 = ws3.addRow(["주차", "기간", "안전점검", "동행점검", "현장소계", "원격입회", "목표건수", "이행율 시각화"]);
-    t2.height = 26; t2.font = { bold:true, color:{ argb:"FFFFFFFF" }, size:10 };
-    t2.fill = { type:"pattern", pattern:"solid", fgColor:{ argb:"FF7C3AED" } };
-    t2.alignment = { horizontal:"center", vertical:"middle" };
+    // ══ Sheet 3 컬럼 구조 ══════════════════════════════════════
+    //  A: 주차  B: 기간  C: 안전점검  D: 동행점검  E: 원격점검
+    //  F: 합계(=C+D+E 수식)  G: 목표건수  H: 목표대비점검율(=F/G 수식)
+    // ═══════════════════════════════════════════════════════════
+    const t2 = ws3.addRow(["주차", "기간", "안전점검", "동행점검", "원격점검", "합계", "목표건수", "목표대비\n점검율"]);
+    t2.height = 30; t2.font = { bold:true, color:{ argb:"FFFFFFFF" }, size:10 };
+    t2.fill = { type:"pattern", pattern:"solid", fgColor:{ argb:"FF1F3864" } };
+    t2.alignment = { horizontal:"center", vertical:"middle", wrapText:true };
+    // 소분류 헤더 색 구분
+    applyFill(t2.getCell(3), "FF1A3C6E"); // 안전
+    applyFill(t2.getCell(4), "FF14532D"); // 동행
+    applyFill(t2.getCell(5), "FF3B0764"); // 원격
     bdr3(t2, "medium");
 
     // 주별 집계 (7/9~8/5 기간 내 월~금 기준)
     const weeks: { label: string; days: string[] }[] = [];
     let wkStart = new Date(PERIOD_START + "T00:00:00");
-    // 첫 주의 월요일로 이동
     while (wkStart.getDay() !== 1) wkStart.setDate(wkStart.getDate() - 1);
     while (wkStart <= endD) {
       const wkEnd = new Date(wkStart); wkEnd.setDate(wkStart.getDate() + 4);
@@ -1380,44 +1416,74 @@ export default function SafetyInspections() {
       wkStart.setDate(wkStart.getDate() + 7);
     }
 
-    const wkStart3 = ws3.rowCount + 1;
+    const wkDataStart = ws3.rowCount + 1;
     weeks.forEach((wk, wi) => {
       const safe   = periodInsp.filter(i => wk.days.includes(i.inspectionDate) && i.inspectionType === "안전점검").length;
       const accomp = periodInsp.filter(i => wk.days.includes(i.inspectionDate) && i.inspectionType === "동행점검").length;
       const remote = periodInsp.filter(i => wk.days.includes(i.inspectionDate) && i.inspectionType === "원격점검").length;
-      const sub    = safe + accomp;
       const tgt    = wk.days.length * allDepts.length;
-      const wkRate = tgt > 0 ? Math.round(sub / tgt * 100) : 0;
-      const filled = Math.min(Math.round(wkRate / 5), 20);
-      const barArgb = wkRate >= 100 ? "FF006100" : wkRate >= 70 ? "FF9C6500" : "FF9C0006";
-      const bar = "█".repeat(filled) + "░".repeat(20 - filled) + `  ${wkRate}%`;
+      const total  = safe + accomp + remote;
+      const wkRate = tgt > 0 ? total / tgt : 0;
+      const rn     = ws3.rowCount + 1;
 
-      const wr = ws3.addRow([`${wi+1}주차`, wk.label, safe, accomp, sub, remote, tgt, bar]);
+      const wr = ws3.addRow([
+        `${wi+1}주차`,
+        wk.label,
+        safe,
+        accomp,
+        remote,
+        { formula: `C${rn}+D${rn}+E${rn}` },                                  // F: 합계
+        tgt,                                                                     // G: 목표건수
+        { formula: `IF(G${rn}>0,F${rn}/G${rn},0)`, result: wkRate },           // H: 달성율
+      ]);
       wr.height = 22; wr.alignment = { horizontal:"center", vertical:"middle" };
-      wr.getCell(1).alignment = { horizontal:"left", vertical:"middle" };
-      applyFill(wr.getCell(3), "FFE8F4FD"); wr.getCell(3).font = { color:{ argb:"FF1A3C6E" } };
-      applyFill(wr.getCell(4), "FFECFDF5"); wr.getCell(4).font = { color:{ argb:"FF065F46" } };
-      applyFill(wr.getCell(5), "FFEFF6FF"); wr.getCell(5).font = { bold:true, color:{ argb:"FF1E40AF" } };
-      applyFill(wr.getCell(6), "FFF5F3FF"); wr.getCell(6).font = { color:{ argb:"FF5B21B6" } };
-      if (wi % 2 !== 0) { applyFill(wr.getCell(1), "FFF8F9FA"); applyFill(wr.getCell(2), "FFF8F9FA"); applyFill(wr.getCell(7), "FFF8F9FA"); }
-      wr.getCell(8).font = { name:"Courier New", size:9, color:{ argb: barArgb } };
+      wr.getCell(1).alignment = { horizontal:"left", vertical:"middle", indent:1 };
+      const altBg = wi % 2 !== 0 ? "FFF5F5F5" : "FFFFFFFF";
+
+      // 주차/기간/목표 교대 배경
+      [1, 2, 7].forEach(c => applyFill(wr.getCell(c), altBg));
+
+      // 안전
+      applyFill(wr.getCell(3), "FFE8F0FE");
+      wr.getCell(3).font = { bold: safe > 0, size:10, color:{ argb:"FF1A3C6E" } };
+      // 동행
+      applyFill(wr.getCell(4), "FFE6F4EA");
+      wr.getCell(4).font = { bold: accomp > 0, size:10, color:{ argb:"FF137333" } };
+      // 원격
+      applyFill(wr.getCell(5), "FFF3E8FD");
+      wr.getCell(5).font = { bold: remote > 0, size:10, color:{ argb:"FF6A0DAD" } };
+      // 합계
+      applyFill(wr.getCell(6), "FFE8F0FE");
+      wr.getCell(6).font = { bold:true, size:10, color:{ argb:"FF1A3C6E" } };
+      // 달성율
+      wr.getCell(8).numFmt = "0%";
+      const ratePct = Math.round(wkRate * 100);
+      const rFontArgb = ratePct >= 100 ? "FF006100" : ratePct >= 70 ? "FF9C6500" : "FF9C0006";
+      const rBgArgb   = ratePct >= 100 ? "FFC6EFCE" : ratePct >= 70 ? "FFFFEB9C" : "FFFFC7CE";
+      applyFill(wr.getCell(8), rBgArgb);
+      wr.getCell(8).font = { bold:true, size:10, color:{ argb: rFontArgb } };
+
       bdr3(wr);
     });
-    const wkEnd3 = ws3.rowCount;
+    const wkDataEnd = ws3.rowCount;
 
-    // 주별 합계
+    // ▶ 전체 합계 행 (SUM 수식)
+    const totRn3 = ws3.rowCount + 1;
     const wkTot = ws3.addRow([
-      "전체합계", `${PERIOD_START.slice(5)}~${PERIOD_END.slice(5)}`,
-      { formula: `SUM(C${wkStart3}:C${wkEnd3})` },
-      { formula: `SUM(D${wkStart3}:D${wkEnd3})` },
-      { formula: `SUM(E${wkStart3}:E${wkEnd3})` },
-      { formula: `SUM(F${wkStart3}:F${wkEnd3})` },
-      WD * allDepts.length,
-      "",
+      "전체합계",
+      `${PERIOD_START.slice(5)}~${PERIOD_END.slice(5)}`,
+      { formula: `SUM(C${wkDataStart}:C${wkDataEnd})` },   // 안전
+      { formula: `SUM(D${wkDataStart}:D${wkDataEnd})` },   // 동행
+      { formula: `SUM(E${wkDataStart}:E${wkDataEnd})` },   // 원격
+      { formula: `C${totRn3}+D${totRn3}+E${totRn3}` },    // 합계
+      WD * allDepts.length,                                  // 목표건수
+      { formula: `IF(G${totRn3}>0,F${totRn3}/G${totRn3},0)`, result: 0 }, // 달성율
     ]);
+    wkTot.getCell(8).numFmt = "0%";
     wkTot.font = { bold:true, size:11 }; wkTot.height = 26;
     wkTot.alignment = { horizontal:"center", vertical:"middle" };
-    for (let c = 1; c <= NC3; c++) applyFill(wkTot.getCell(c), "FFD6EAF8");
+    wkTot.getCell(1).alignment = { horizontal:"center", vertical:"middle" };
+    for (let c = 1; c <= NC3; c++) applyFill(wkTot.getCell(c), "FFD9E1F2");
     bdr3(wkTot, "medium");
 
     ws3.views = [{ state:"frozen", ySplit: 2 }];
