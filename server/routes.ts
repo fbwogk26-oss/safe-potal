@@ -3936,6 +3936,62 @@ ${buildEmailFooter()}
     }
   });
 
+  // ── GET /api/admin/uploads-export ────────────────────────────────────────
+  // 토큰 기반 이미지 ZIP 내보내기 (로컬 Windows 서버 동기화용)
+  // 인증: ?token=DB_SYNC_TOKEN 환경변수 값
+  app.get("/api/admin/uploads-export", async (req: any, res) => {
+    try {
+      const syncToken = process.env.DB_SYNC_TOKEN || "TEMP_SYNC_2026";
+      const provided = req.query.token as string | undefined;
+      if (!provided || provided !== syncToken) {
+        return res.status(401).json({ message: "유효하지 않은 토큰입니다." });
+      }
+      const { default: archiver } = await import("archiver");
+      const { default: fs } = await import("fs");
+      const { default: pathMod } = await import("path");
+      const uploadDir = pathMod.join(process.cwd(), "uploads");
+      const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+      res.setHeader("Content-Type", "application/zip");
+      res.setHeader("Content-Disposition", `attachment; filename="uploads_${stamp}.zip"`);
+      const archive = archiver("zip", { zlib: { level: 4 } });
+      archive.on("error", (err: any) => { console.error("[uploads-export] archive error:", err); });
+      archive.pipe(res);
+
+      // 1) 로컬 uploads 폴더 이미지
+      const imgExts = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".jpe"];
+      if (fs.existsSync(uploadDir)) {
+        const files = fs.readdirSync(uploadDir).filter(f =>
+          imgExts.includes(pathMod.extname(f).toLowerCase())
+        );
+        for (const f of files) archive.file(pathMod.join(uploadDir, f), { name: f });
+        console.log(`[uploads-export] 로컬 이미지 ${files.length}개 추가`);
+      }
+
+      // 2) Object Storage 이미지 (설정된 경우)
+      const privateDir2 = process.env.PRIVATE_OBJECT_DIR;
+      if (privateDir2) {
+        try {
+          const parts = privateDir2.replace(/^\//, "").split("/");
+          const bucketName = parts[0];
+          const prefix = parts.slice(1).join("/");
+          const [storageFiles] = await objectStorageClient.bucket(bucketName).getFiles({ prefix: prefix + "/uploads/" });
+          let storageCount = 0;
+          for (const file of storageFiles) {
+            const name = pathMod.basename(file.name);
+            if (!imgExts.some(e => name.toLowerCase().endsWith(e))) continue;
+            try { const [buf] = await file.download(); archive.append(buf, { name }); storageCount++; } catch (_) {}
+          }
+          console.log(`[uploads-export] Object Storage 이미지 ${storageCount}개 추가`);
+        } catch (e: any) { console.warn("[uploads-export] Object Storage 스킵:", e?.message); }
+      }
+
+      await archive.finalize();
+    } catch (err: any) {
+      console.error("[uploads-export] 실패:", err?.message);
+      if (!res.headersSent) res.status(500).json({ message: "업로드 내보내기 실패: " + err?.message });
+    }
+  });
+
   app.get("/api/admin/backup/files", isAuthenticated, async (req: any, res) => {
     if (req.user?.role !== "admin") return res.status(403).json({ message: "관리자만 접근 가능합니다." });
     const privateDir = process.env.PRIVATE_OBJECT_DIR;
