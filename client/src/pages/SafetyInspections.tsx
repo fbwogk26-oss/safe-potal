@@ -2849,7 +2849,7 @@ export default function SafetyInspections() {
               const e = new Date(reportEndDate + "T00:00:00");
               while (c <= e) {
                 const d = c.getDay();
-                const ds = c.toISOString().slice(0,10);
+                const ds = `${c.getFullYear()}-${String(c.getMonth()+1).padStart(2,"0")}-${String(c.getDate()).padStart(2,"0")}`;
                 if (d !== 0 && d !== 6 && !HOLIDAYS_PREVIEW.has(ds)) wd++;
                 c.setDate(c.getDate() + 1);
               }
