@@ -929,12 +929,13 @@ export default function SafetyInspections() {
     wb.creator = "SafetyBoard";
 
     // ══════════════════════════════════════════════════════════════
-    // Sheet 1 컬럼 (이미지 기준 7열)
-    //  A: 구분   B: 안전점검   C: 동행점검   D: 원격점검
-    //  E: 합계(=B+C+D)   F: 목표건수   G: 목표대비 점검율(=E/F)
+    // Sheet 1 컬럼 (8열)
+    //  A: 구분  B: 안전점검  C: 동행점검  D: 원격점검
+    //  E: 합계(=B+C+D)  F: 목표건수  G: 목표대비 점검율(=E/F)
+    //  H: 그래프 (바 시각화)
     // ══════════════════════════════════════════════════════════════
-    const NC1 = 7;
-    const C = { dept:1, safe:2, accomp:3, remote:4, total:5, target:6, rate:7 };
+    const NC1 = 8;
+    const C = { dept:1, safe:2, accomp:3, remote:4, total:5, target:6, rate:7, bar:8 };
 
     const applyFill = (cell: ExcelJS.Cell, argb: string) => {
       cell.fill = { type:"pattern", pattern:"solid", fgColor:{ argb } };
@@ -944,10 +945,11 @@ export default function SafetyInspections() {
       : String.fromCharCode(64 + Math.floor((n-1)/26)) + String.fromCharCode(64 + ((n-1)%26) + 1);
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // Sheet 1: 종합표 + 그래프
+    // Sheet 1: 종합표
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     const ws1 = wb.addWorksheet("종합표");
-    [20, 13, 13, 13, 12, 12, 16].forEach((w, i) => { ws1.getColumn(i+1).width = w; });
+    // A  B    C    D    E    F    G    H(그래프)
+    [20, 13, 13, 13, 12, 12, 15, 30].forEach((w, i) => { ws1.getColumn(i+1).width = w; });
 
     const mergeNC1 = (row: ExcelJS.Row) =>
       ws1.mergeCells(`A${row.number}:${colLetter(NC1)}${row.number}`);
@@ -955,196 +957,142 @@ export default function SafetyInspections() {
       for (let c = 1; c <= cols; c++)
         row.getCell(c).border = { top:{style}, left:{style}, bottom:{style}, right:{style} };
     };
-    const styleCell = (cell: ExcelJS.Cell, opts: Partial<ExcelJS.Cell>) =>
-      Object.assign(cell, opts);
 
-    // ▶ 제목 블록
+    // ▶ 제목
     const r1 = ws1.addRow(["특별안전점검 기간 종합 현황"]);
     mergeNC1(r1); r1.height = 38;
-    styleCell(r1.getCell(1), {
-      font: { bold:true, size:15, color:{ argb:"FFFFFFFF" } },
-      fill: { type:"pattern", pattern:"solid", fgColor:{ argb:"FFC0392B" } },
-      alignment: { horizontal:"center", vertical:"middle" },
-    });
+    r1.getCell(1).font      = { bold:true, size:15, color:{ argb:"FFFFFFFF" } };
+    r1.getCell(1).fill      = { type:"pattern", pattern:"solid", fgColor:{ argb:"FFC0392B" } };
+    r1.getCell(1).alignment = { horizontal:"center", vertical:"middle" };
 
     const r2 = ws1.addRow([`점검기간: ${PERIOD_LABEL}     목표: 부서별 매일 1건 이상     영업일수: ${WD}일     ${TODAY_LABEL}`]);
     mergeNC1(r2); r2.height = 22;
-    styleCell(r2.getCell(1), {
-      font: { bold:true, size:10, color:{ argb:"FF7F1D1D" } },
-      fill: { type:"pattern", pattern:"solid", fgColor:{ argb:"FFFEF2F2" } },
-      alignment: { horizontal:"center", vertical:"middle" },
-    });
+    r2.getCell(1).font      = { bold:true, size:10, color:{ argb:"FF7F1D1D" } };
+    r2.getCell(1).fill      = { type:"pattern", pattern:"solid", fgColor:{ argb:"FFFEF2F2" } };
+    r2.getCell(1).alignment = { horizontal:"center", vertical:"middle" };
 
-    // ▶ 헤더 2단 — 이미지와 동일한 구조
-    // 행 h1: 구분 | 점검내역(B~D 병합) | 합계 | 목표건수 | 목표대비 점검율
-    //        A, E, F, G는 h1+h2 세로 병합
-    const h1 = ws1.addRow(["구분", "점검내역", "", "", "합계", "목표건수", "목표대비\n점검율"]);
-    h1.height = 28;
-    h1.font = { bold:true, color:{ argb:"FFFFFFFF" }, size:10 };
-    h1.fill = { type:"pattern", pattern:"solid", fgColor:{ argb:"FF1F3864" } };
+    // ▶ 헤더 2단
+    // h1: 구분(A세로병합) | 점검내역(B~D가로병합) | 합계(E세로병합) | 목표건수(F세로병합) | 목표대비점검율(G세로병합) | 그래프(H세로병합)
+    // h2:                 | 안전점검 | 동행점검 | 원격점검 |
+    const h1 = ws1.addRow(["구분", "점검내역", "", "", "합계", "목표건수", "목표대비\n점검율", "그래프"]);
+    h1.height = 30;
+    h1.font      = { bold:true, color:{ argb:"FFFFFFFF" }, size:10 };
+    h1.fill      = { type:"pattern", pattern:"solid", fgColor:{ argb:"FF1F3864" } };
     h1.alignment = { horizontal:"center", vertical:"middle", wrapText:true };
-    ws1.mergeCells(`B${h1.number}:D${h1.number}`); // 점검내역 병합
-    // A, E, F, G 세로 2행 병합 (다음 행까지)
-    ["A","E","F","G"].forEach(col => {
-      ws1.mergeCells(`${col}${h1.number}:${col}${h1.number + 1}`);
-    });
+    ws1.mergeCells(`B${h1.number}:D${h1.number}`);                          // 점검내역 가로 병합
+    ["A","E","F","G","H"].forEach(col =>
+      ws1.mergeCells(`${col}${h1.number}:${col}${h1.number+1}`)             // 나머지 세로 2행 병합
+    );
     bdr1(h1, NC1, "medium");
 
-    // 행 h2: (blank) | 안전점검 | 동행점검 | 원격점검 | ...
-    const h2 = ws1.addRow(["", "안전점검", "동행점검", "원격점검", "", "", ""]);
-    h2.height = 24;
-    h2.font = { bold:true, color:{ argb:"FFFFFFFF" }, size:10 };
+    const h2 = ws1.addRow(["", "안전점검", "동행점검", "원격점검", "", "", "", ""]);
+    h2.height = 22;
+    h2.font      = { bold:true, color:{ argb:"FFFFFFFF" }, size:10 };
     h2.alignment = { horizontal:"center", vertical:"middle" };
-    // 소분류 배경색 구분
+    applyFill(h2.getCell(C.dept),   "FF1F3864");
     applyFill(h2.getCell(C.safe),   "FF1A3C6E");
     applyFill(h2.getCell(C.accomp), "FF14532D");
     applyFill(h2.getCell(C.remote), "FF3B0764");
-    applyFill(h2.getCell(C.dept),   "FF1F3864");
     applyFill(h2.getCell(C.total),  "FF1F3864");
     applyFill(h2.getCell(C.target), "FF1F3864");
     applyFill(h2.getCell(C.rate),   "FF1F3864");
+    applyFill(h2.getCell(C.bar),    "FF1F3864");
     bdr1(h2, NC1, "medium");
 
-    // ▶ 부서별 데이터 행 (수식 포함)
+    // ▶ 부서별 데이터 행
     const dataStart = ws1.rowCount + 1;
     deptStats.forEach((s, idx) => {
-      const rn = ws1.rowCount + 1;
+      const rn    = ws1.rowCount + 1;
       const altBg = idx % 2 !== 0 ? "FFF5F5F5" : "FFFFFFFF";
+
+      // 그래프 바 생성 (10칸 × 10% = 100%)
+      const filled   = Math.min(Math.floor(s.rate / 10), 10);
+      const barArgb  = s.rate >= 100 ? "FF1D8348" : s.rate >= 70 ? "FF9C6500" : "FF9C0006";
+      const barText  = "█".repeat(filled) + "░".repeat(10 - filled) + `  ${s.rate}%`;
 
       const dr = ws1.addRow([
         s.dept,
-        s.safe,                                                              // B: 안전점검
-        s.accomp,                                                            // C: 동행점검
-        s.remote,                                                            // D: 원격점검
-        { formula: `B${rn}+C${rn}+D${rn}` },                               // E: 합계 수식
-        WD,                                                                  // F: 목표건수
-        { formula: `IF(F${rn}>0,E${rn}/F${rn},0)`, result: WD > 0 ? s.total / WD : 0 }, // G: 점검율 수식
+        s.safe,
+        s.accomp,
+        s.remote,
+        { formula: `B${rn}+C${rn}+D${rn}` },
+        WD,
+        { formula: `IF(F${rn}>0,E${rn}/F${rn},0)`, result: WD > 0 ? s.total / WD : 0 },
+        barText,
       ]);
       dr.height = 22;
       dr.alignment = { horizontal:"center", vertical:"middle" };
-      dr.getCell(C.dept).alignment = { horizontal:"left", vertical:"middle", indent: 1 };
+      dr.getCell(C.dept).alignment = { horizontal:"left", vertical:"middle", indent:1 };
 
       // 교대 배경
       [C.dept, C.total, C.target].forEach(c => applyFill(dr.getCell(c), altBg));
 
-      // 안전점검 — 파랑 계열
-      applyFill(dr.getCell(C.safe), "FFE8F0FE");
-      dr.getCell(C.safe).font = { size:10, color:{ argb:"FF1A3C6E" }, bold: s.safe > 0 };
+      applyFill(dr.getCell(C.safe),   "FFE8F0FE");
+      dr.getCell(C.safe).font   = { size:10, color:{ argb:"FF1A3C6E" }, bold: s.safe > 0 };
 
-      // 동행점검 — 초록 계열
       applyFill(dr.getCell(C.accomp), "FFE6F4EA");
       dr.getCell(C.accomp).font = { size:10, color:{ argb:"FF137333" }, bold: s.accomp > 0 };
 
-      // 원격점검 — 보라 계열
       applyFill(dr.getCell(C.remote), "FFF3E8FD");
       dr.getCell(C.remote).font = { size:10, color:{ argb:"FF6A0DAD" }, bold: s.remote > 0 };
 
-      // 합계 — 진한 파랑
-      applyFill(dr.getCell(C.total), "FFE8F0FE");
-      dr.getCell(C.total).font = { bold:true, size:10, color:{ argb:"FF1A3C6E" } };
+      applyFill(dr.getCell(C.total),  "FFE8F0FE");
+      dr.getCell(C.total).font  = { bold:true, size:10, color:{ argb:"FF1A3C6E" } };
 
-      // 점검율 색상 + 서식
       dr.getCell(C.rate).numFmt = "0%";
-      const rateArgbFont = s.rate >= 100 ? "FF006100" : s.rate >= 70 ? "FF9C6500" : "FF9C0006";
-      const rateArgbBg   = s.rate >= 100 ? "FFC6EFCE" : s.rate >= 70 ? "FFFFEB9C" : "FFFFC7CE";
-      applyFill(dr.getCell(C.rate), rateArgbBg);
-      dr.getCell(C.rate).font = { bold:true, size:10, color:{ argb: rateArgbFont } };
+      const rateFontArgb = s.rate >= 100 ? "FF006100" : s.rate >= 70 ? "FF9C6500" : "FF9C0006";
+      const rateBgArgb   = s.rate >= 100 ? "FFC6EFCE" : s.rate >= 70 ? "FFFFEB9C" : "FFFFC7CE";
+      applyFill(dr.getCell(C.rate), rateBgArgb);
+      dr.getCell(C.rate).font = { bold:true, size:10, color:{ argb: rateFontArgb } };
+
+      applyFill(dr.getCell(C.bar), altBg);
+      dr.getCell(C.bar).font      = { name:"Courier New", size:9, color:{ argb: barArgb } };
+      dr.getCell(C.bar).alignment = { horizontal:"left", vertical:"middle" };
 
       bdr1(dr, NC1);
     });
     const dataEnd = ws1.rowCount;
 
-    // ▶ 합계 행 (SUM 수식)
+    // ▶ 합계 행
     const totRn = ws1.rowCount + 1;
+    const totSafe   = deptStats.reduce((a, s) => a + s.safe, 0);
+    const totAccomp = deptStats.reduce((a, s) => a + s.accomp, 0);
+    const totRemote = deptStats.reduce((a, s) => a + s.remote, 0);
+    const totAll    = totSafe + totAccomp + totRemote;
+    const totTarget = WD * allDepts.length;
+    const totRate   = totTarget > 0 ? Math.round(totAll / totTarget * 100) : 0;
+    const totFilled = Math.min(Math.floor(totRate / 10), 10);
+    const totBarArgb = totRate >= 100 ? "FF1D8348" : totRate >= 70 ? "FF9C6500" : "FF9C0006";
+    const totBarText = "█".repeat(totFilled) + "░".repeat(10 - totFilled) + `  ${totRate}%`;
+
     const totRow = ws1.addRow([
       "합  계",
-      { formula: `SUM(B${dataStart}:B${dataEnd})` },   // 안전
-      { formula: `SUM(C${dataStart}:C${dataEnd})` },   // 동행
-      { formula: `SUM(D${dataStart}:D${dataEnd})` },   // 원격
-      { formula: `SUM(E${dataStart}:E${dataEnd})` },   // 합계
-      { formula: `SUM(F${dataStart}:F${dataEnd})` },   // 목표
-      { formula: `IF(F${totRn}>0,E${totRn}/F${totRn},0)`, result: 0 }, // 달성율
+      { formula: `SUM(B${dataStart}:B${dataEnd})` },
+      { formula: `SUM(C${dataStart}:C${dataEnd})` },
+      { formula: `SUM(D${dataStart}:D${dataEnd})` },
+      { formula: `SUM(E${dataStart}:E${dataEnd})` },
+      { formula: `SUM(F${dataStart}:F${dataEnd})` },
+      { formula: `IF(F${totRn}>0,E${totRn}/F${totRn},0)`, result: totTarget > 0 ? totAll / totTarget : 0 },
+      totBarText,
     ]);
     totRow.getCell(C.rate).numFmt = "0%";
-    totRow.font = { bold:true, size:11 };
-    totRow.height = 26;
+    totRow.font      = { bold:true, size:11 };
+    totRow.height    = 26;
     totRow.alignment = { horizontal:"center", vertical:"middle" };
     totRow.getCell(C.dept).alignment = { horizontal:"center", vertical:"middle" };
     for (let c = 1; c <= NC1; c++) applyFill(totRow.getCell(c), "FFD9E1F2");
+    totRow.getCell(C.bar).font      = { name:"Courier New", size:9, bold:true, color:{ argb: totBarArgb } };
+    totRow.getCell(C.bar).alignment = { horizontal:"left", vertical:"middle" };
     bdr1(totRow, NC1, "medium");
 
     // ▶ 안내 주석
     ws1.addRow([]);
-    const noteRow = ws1.addRow(["※ B(안전)·C(동행)·D(원격) 셀을 직접 수정하면 E(합계)·G(점검율)이 자동 재계산됩니다.  F(목표건수)도 수정 가능합니다."]);
+    const noteRow = ws1.addRow(["※ B(안전)·C(동행)·D(원격) 셀을 직접 수정하면 E(합계)·G(점검율)·H(그래프)가 자동 재계산됩니다."]);
     mergeNC1(noteRow);
-    noteRow.getCell(1).font = { italic:true, size:9, color:{ argb:"FF555555" } };
+    noteRow.getCell(1).font      = { italic:true, size:9, color:{ argb:"FF555555" } };
     noteRow.getCell(1).alignment = { horizontal:"left" };
 
-    // ━━ 그래프 섹션 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    ws1.addRow([]);
-    const gTitle = ws1.addRow([`부서별 목표대비 점검율 현황  (${TODAY_LABEL})`]);
-    mergeNC1(gTitle); gTitle.height = 28;
-    styleCell(gTitle.getCell(1), {
-      font: { bold:true, size:11, color:{ argb:"FFFFFFFF" } },
-      fill: { type:"pattern", pattern:"solid", fgColor:{ argb:"FF1F3864" } },
-      alignment: { horizontal:"center", vertical:"middle" },
-    });
-
-    // 그래프: 부서명(A) + 7구간 셀(B~G) + 점검율(없음, G에 표시)
-    // 구간: 0~14%, 14~29%, 29~43%, 43~57%, 57~71%, 71~86%, 86~100%+
-    const gHdr = ws1.addRow(["부서명", "0%", "~15%", "~30%", "~45%", "~60%", "~75%", "100%이상"]);
-    // 8열이 필요하지만 NC1=7이니 7열로 축소: 부서명(A) + 5구간(B~F) + 점검율(G)
-    const gHdr7 = ws1.addRow(["부서명", "0%", "~20%", "~40%", "~60%", "~80%", "점검율"]);
-    ws1.spliceRows(gHdr.number, 1); // gHdr 제거 (gHdr7로 대체)
-    gHdr7.height = 20;
-    gHdr7.font = { bold:true, size:9, color:{ argb:"FFFFFFFF" } };
-    gHdr7.fill = { type:"pattern", pattern:"solid", fgColor:{ argb:"FF374151" } };
-    gHdr7.alignment = { horizontal:"center", vertical:"middle" };
-    bdr1(gHdr7, NC1);
-
-    deptStats.forEach((s, idx) => {
-      const gr = ws1.addRow([s.dept.replace("운용팀","팀")]);
-      gr.height = 26;
-      gr.getCell(1).alignment = { horizontal:"left", vertical:"middle", indent:1 };
-      gr.getCell(1).font = { size:9 };
-      applyFill(gr.getCell(1), idx % 2 === 0 ? "FFFFFFFF" : "FFF5F5F5");
-      gr.getCell(1).border = { top:{style:"thin"}, left:{style:"thin"}, bottom:{style:"thin"}, right:{style:"thin"} };
-
-      const barArgb = s.rate >= 100 ? "FF1D8348" : s.rate >= 70 ? "FFFE9A00" : "FFD93025";
-      const bgAlt   = idx % 2 === 0 ? "FFFFFFFF" : "FFF5F5F5";
-      // B~F: 5구간 × 20% = 100%
-      for (let seg = 0; seg < 5; seg++) {
-        const segMax = (seg + 1) * 20;
-        const segMin = seg * 20;
-        const cell = gr.getCell(seg + 2);
-        cell.alignment = { horizontal:"center", vertical:"middle" };
-        cell.border = { top:{style:"thin"}, left:{style:"thin"}, bottom:{style:"thin"}, right:{style:"thin"} };
-        if (s.rate >= segMax) {
-          applyFill(cell, barArgb);
-        } else if (s.rate > segMin) {
-          applyFill(cell, s.rate >= 100 ? "FF81C995" : s.rate >= 70 ? "FFFDD663" : "FFFF8A80");
-          cell.value = `${s.rate}%`;
-          cell.font = { bold:true, size:8, color:{ argb:"FF111111" } };
-        } else {
-          applyFill(cell, bgAlt);
-        }
-      }
-      // G열: 점검율 수치
-      const pctCell = gr.getCell(NC1);
-      pctCell.value = `${s.rate}%`;
-      pctCell.font = { bold:true, size:10, color:{ argb: s.rate>=100?"FF006100": s.rate>=70?"FF9C6500":"FF9C0006" } };
-      pctCell.alignment = { horizontal:"center", vertical:"middle" };
-      applyFill(pctCell, s.rate>=100?"FFC6EFCE": s.rate>=70?"FFFFEB9C":"FFFFC7CE");
-      pctCell.border = { top:{style:"thin"}, left:{style:"thin"}, bottom:{style:"thin"}, right:{style:"thin"} };
-    });
-
-    ws1.addRow([]);
-    const lgRow = ws1.addRow(["🟩 100% 이상 달성  |  🟨 70~99%  |  🟥 70% 미만     ※ 각 구간 = 20%p"]);
-    mergeNC1(lgRow);
-    lgRow.getCell(1).font = { italic:true, size:9, color:{ argb:"FF444444" } };
-    lgRow.getCell(1).alignment = { horizontal:"center" };
-
-    ws1.views = [{ state:"frozen", xSplit:1, ySplit:2 }];
+    ws1.views = [{ state:"frozen", xSplit:1, ySplit:4 }];
 
     // ══════════════════════════════════════════════════════════════
     // Sheet 2: 일자별 현황 (안전 / 동행 / 원격 구분 표시)
