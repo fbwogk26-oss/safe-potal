@@ -929,13 +929,12 @@ export default function SafetyInspections() {
     wb.creator = "SafetyBoard";
 
     // ══════════════════════════════════════════════════════════════
-    // Sheet 1 컬럼 (8열)
+    // Sheet 1 컬럼 (7열)
     //  A: 구분  B: 안전점검  C: 동행점검  D: 원격점검
-    //  E: 합계(=B+C+D)  F: 목표건수  G: 목표대비 점검율(=E/F)
-    //  H: 그래프 (바 시각화)
+    //  E: 합계(=B+C+D)  F: 목표건수  G: 목표대비점검율 + 그래프(바 시각화)
     // ══════════════════════════════════════════════════════════════
-    const NC1 = 8;
-    const C = { dept:1, safe:2, accomp:3, remote:4, total:5, target:6, rate:7, bar:8 };
+    const NC1 = 7;
+    const C = { dept:1, safe:2, accomp:3, remote:4, total:5, target:6, rate:7 };
 
     const applyFill = (cell: ExcelJS.Cell, argb: string) => {
       cell.fill = { type:"pattern", pattern:"solid", fgColor:{ argb } };
@@ -949,7 +948,7 @@ export default function SafetyInspections() {
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     const ws1 = wb.addWorksheet("종합표");
     // A  B    C    D    E    F    G    H(그래프)
-    [20, 13, 13, 13, 12, 12, 15, 30].forEach((w, i) => { ws1.getColumn(i+1).width = w; });
+    [20, 13, 13, 13, 12, 12, 34].forEach((w, i) => { ws1.getColumn(i+1).width = w; });
 
     const mergeNC1 = (row: ExcelJS.Row) =>
       ws1.mergeCells(`A${row.number}:${colLetter(NC1)}${row.number}`);
@@ -974,18 +973,18 @@ export default function SafetyInspections() {
     // ▶ 헤더 2단
     // h1: 구분(A세로병합) | 점검내역(B~D가로병합) | 합계(E세로병합) | 목표건수(F세로병합) | 목표대비점검율(G세로병합) | 그래프(H세로병합)
     // h2:                 | 안전점검 | 동행점검 | 원격점검 |
-    const h1 = ws1.addRow(["구분", "점검내역", "", "", "합계", "목표건수", "목표대비\n점검율", "그래프"]);
+    const h1 = ws1.addRow(["구분", "점검내역", "", "", "합계", "목표건수", "목표대비\n점검율"]);
     h1.height = 30;
     h1.font      = { bold:true, color:{ argb:"FFFFFFFF" }, size:10 };
     h1.fill      = { type:"pattern", pattern:"solid", fgColor:{ argb:"FF1F3864" } };
     h1.alignment = { horizontal:"center", vertical:"middle", wrapText:true };
     ws1.mergeCells(`B${h1.number}:D${h1.number}`);                          // 점검내역 가로 병합
-    ["A","E","F","G","H"].forEach(col =>
+    ["A","E","F","G"].forEach(col =>
       ws1.mergeCells(`${col}${h1.number}:${col}${h1.number+1}`)             // 나머지 세로 2행 병합
     );
     bdr1(h1, NC1, "medium");
 
-    const h2 = ws1.addRow(["", "안전점검", "동행점검", "원격점검", "", "", "", ""]);
+    const h2 = ws1.addRow(["", "안전점검", "동행점검", "원격점검", "", "", ""]);
     h2.height = 22;
     h2.font      = { bold:true, color:{ argb:"FFFFFFFF" }, size:10 };
     h2.alignment = { horizontal:"center", vertical:"middle" };
@@ -996,7 +995,6 @@ export default function SafetyInspections() {
     applyFill(h2.getCell(C.total),  "FF1F3864");
     applyFill(h2.getCell(C.target), "FF1F3864");
     applyFill(h2.getCell(C.rate),   "FF1F3864");
-    applyFill(h2.getCell(C.bar),    "FF1F3864");
     bdr1(h2, NC1, "medium");
 
     // ▶ 부서별 데이터 행
@@ -1017,7 +1015,6 @@ export default function SafetyInspections() {
         s.remote,
         { formula: `B${rn}+C${rn}+D${rn}` },
         WD,
-        { formula: `IF(F${rn}>0,E${rn}/F${rn},0)`, result: WD > 0 ? s.total / WD : 0 },
         barText,
       ]);
       dr.height = 22;
@@ -1039,15 +1036,10 @@ export default function SafetyInspections() {
       applyFill(dr.getCell(C.total),  "FFE8F0FE");
       dr.getCell(C.total).font  = { bold:true, size:10, color:{ argb:"FF1A3C6E" } };
 
-      dr.getCell(C.rate).numFmt = "0%";
-      const rateFontArgb = s.rate >= 100 ? "FF006100" : s.rate >= 70 ? "FF9C6500" : "FF9C0006";
-      const rateBgArgb   = s.rate >= 100 ? "FFC6EFCE" : s.rate >= 70 ? "FFFFEB9C" : "FFFFC7CE";
+      const rateBgArgb = s.rate >= 100 ? "FFC6EFCE" : s.rate >= 70 ? "FFFFEB9C" : "FFFFC7CE";
       applyFill(dr.getCell(C.rate), rateBgArgb);
-      dr.getCell(C.rate).font = { bold:true, size:10, color:{ argb: rateFontArgb } };
-
-      applyFill(dr.getCell(C.bar), altBg);
-      dr.getCell(C.bar).font      = { name:"Courier New", size:9, color:{ argb: barArgb } };
-      dr.getCell(C.bar).alignment = { horizontal:"left", vertical:"middle" };
+      dr.getCell(C.rate).font      = { name:"Courier New", size:9, bold:true, color:{ argb: barArgb } };
+      dr.getCell(C.rate).alignment = { horizontal:"left", vertical:"middle" };
 
       bdr1(dr, NC1);
     });
@@ -1072,22 +1064,20 @@ export default function SafetyInspections() {
       { formula: `SUM(D${dataStart}:D${dataEnd})` },
       { formula: `SUM(E${dataStart}:E${dataEnd})` },
       { formula: `SUM(F${dataStart}:F${dataEnd})` },
-      { formula: `IF(F${totRn}>0,E${totRn}/F${totRn},0)`, result: totTarget > 0 ? totAll / totTarget : 0 },
       totBarText,
     ]);
-    totRow.getCell(C.rate).numFmt = "0%";
     totRow.font      = { bold:true, size:11 };
     totRow.height    = 26;
     totRow.alignment = { horizontal:"center", vertical:"middle" };
     totRow.getCell(C.dept).alignment = { horizontal:"center", vertical:"middle" };
     for (let c = 1; c <= NC1; c++) applyFill(totRow.getCell(c), "FFD9E1F2");
-    totRow.getCell(C.bar).font      = { name:"Courier New", size:9, bold:true, color:{ argb: totBarArgb } };
-    totRow.getCell(C.bar).alignment = { horizontal:"left", vertical:"middle" };
+    totRow.getCell(C.rate).font      = { name:"Courier New", size:9, bold:true, color:{ argb: totBarArgb } };
+    totRow.getCell(C.rate).alignment = { horizontal:"left", vertical:"middle" };
     bdr1(totRow, NC1, "medium");
 
     // ▶ 안내 주석
     ws1.addRow([]);
-    const noteRow = ws1.addRow(["※ B(안전)·C(동행)·D(원격) 셀을 직접 수정하면 E(합계)·G(점검율)·H(그래프)가 자동 재계산됩니다."]);
+    const noteRow = ws1.addRow(["※ B(안전)·C(동행)·D(원격) 셀을 직접 수정하면 E(합계)가 자동 재계산됩니다."]);
     mergeNC1(noteRow);
     noteRow.getCell(1).font      = { italic:true, size:9, color:{ argb:"FF555555" } };
     noteRow.getCell(1).alignment = { horizontal:"left" };
@@ -1138,7 +1128,6 @@ export default function SafetyInspections() {
       fill: { type:"pattern", pattern:"solid", fgColor:{ argb:"FFD1FAE5" } },
       alignment: { horizontal:"center", vertical:"middle" },
     });
-    ws2.addRow([]);
 
     // ▶ 헤더 2단
     // 1단: 부서명 병합
@@ -1312,7 +1301,7 @@ export default function SafetyInspections() {
     else { applyFill(totPctCell, "FFFFC7CE"); totPctCell.font = { bold:true, size:9, color:{ argb:"FF9C0006" } }; }
     bdr2(prRow, "medium");
 
-    ws2.views = [{ state:"frozen", xSplit:1, ySplit:6 }];
+    ws2.views = [{ state:"frozen", xSplit:1, ySplit:4 }];
 
     // ══════════════════════════════════════════════════════════════
     // Sheet 3: 주차별 × 부서별 추이
