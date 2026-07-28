@@ -903,13 +903,34 @@ export default function SafetyInspections() {
     const PERIOD_LABEL = `${fmtDateLabel(PERIOD_START)} ~ ${fmtDateLabel(PERIOD_END)}`;
     const TODAY_LABEL  = format(new Date(), "yyyy. M. d") + " 현재";
 
-    // ── 영업일(월~금) 목록 ────────────────────────────────────────
+    // ── 공휴일 목록 (평일이지만 쉬는 날) ─────────────────────────
+    const HOLIDAYS = new Set([
+      "2026-01-01", // 신정
+      "2026-01-28", // 설날 연휴
+      "2026-01-29", // 설날
+      "2026-01-30", // 설날 연휴
+      "2026-03-01", // 삼일절
+      "2026-05-05", // 어린이날
+      "2026-05-25", // 부처님오신날
+      "2026-06-06", // 현충일
+      "2026-07-17", // 제헌절
+      "2026-08-15", // 광복절
+      "2026-09-24", // 추석 연휴
+      "2026-09-25", // 추석
+      "2026-09-26", // 추석 연휴
+      "2026-10-03", // 개천절
+      "2026-10-09", // 한글날
+      "2026-12-25", // 성탄절
+    ]);
+
+    // ── 영업일(월~금, 공휴일 제외) 목록 ──────────────────────────
     const workingDays: string[] = [];
     const cur = new Date(PERIOD_START + "T00:00:00");
     const endD = new Date(PERIOD_END + "T00:00:00");
     while (cur <= endD) {
       const dow = cur.getDay();
-      if (dow !== 0 && dow !== 6) workingDays.push(format(cur, "yyyy-MM-dd"));
+      const dateStr = format(cur, "yyyy-MM-dd");
+      if (dow !== 0 && dow !== 6 && !HOLIDAYS.has(dateStr)) workingDays.push(dateStr);
       cur.setDate(cur.getDate() + 1);
     }
     const WD = workingDays.length;
@@ -2822,10 +2843,16 @@ export default function SafetyInspections() {
 
             {/* 영업일 미리보기 */}
             {reportStartDate && reportEndDate && reportStartDate <= reportEndDate && (() => {
+              const HOLIDAYS_PREVIEW = new Set(["2026-01-01","2026-01-28","2026-01-29","2026-01-30","2026-03-01","2026-05-05","2026-05-25","2026-06-06","2026-07-17","2026-08-15","2026-09-24","2026-09-25","2026-09-26","2026-10-03","2026-10-09","2026-12-25"]);
               let wd = 0;
               const c = new Date(reportStartDate + "T00:00:00");
               const e = new Date(reportEndDate + "T00:00:00");
-              while (c <= e) { const d = c.getDay(); if (d !== 0 && d !== 6) wd++; c.setDate(c.getDate() + 1); }
+              while (c <= e) {
+                const d = c.getDay();
+                const ds = c.toISOString().slice(0,10);
+                if (d !== 0 && d !== 6 && !HOLIDAYS_PREVIEW.has(ds)) wd++;
+                c.setDate(c.getDate() + 1);
+              }
               return (
                 <div className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">
                   📅 영업일(월~금): <span className="font-semibold text-foreground">{wd}일</span>
