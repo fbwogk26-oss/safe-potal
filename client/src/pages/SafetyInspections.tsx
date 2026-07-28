@@ -888,9 +888,9 @@ export default function SafetyInspections() {
     toast({ title: "특별점검 종합 엑셀 생성 중..." });
 
     // ── 상수 ──────────────────────────────────────────────────────
-    const PERIOD_START = "2025-07-09";
-    const PERIOD_END   = "2025-08-05";
-    const PERIOD_LABEL = "2025. 7. 9(수) ~ 2025. 8. 5(화)";
+    const PERIOD_START = "2026-07-09";
+    const PERIOD_END   = "2026-08-05";
+    const PERIOD_LABEL = "2026. 7. 9(목) ~ 2026. 8. 5(수)";
     const TODAY_LABEL  = format(new Date(), "yyyy. M. d") + " 현재";
 
     // ── 영업일(월~금) 목록 ────────────────────────────────────────
