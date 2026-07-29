@@ -3936,6 +3936,35 @@ ${buildEmailFooter()}
     }
   });
 
+  // ── POST /api/admin/reset-admin-pw ───────────────────────────────────────
+  // 토큰 기반 admin 비밀번호 초기화 (로그인 불가 시 복구용)
+  // 사용: POST /api/admin/reset-admin-pw?token=DB_SYNC_TOKEN  body: { newPassword }
+  app.post("/api/admin/reset-admin-pw", async (req: any, res) => {
+    try {
+      const syncToken = process.env.DB_SYNC_TOKEN || "TEMP_SYNC_2026";
+      const provided = req.query.token as string | undefined;
+      if (!provided || provided !== syncToken) {
+        return res.status(401).json({ message: "유효하지 않은 토큰입니다." });
+      }
+      const { username = "admin", newPassword } = req.body;
+      if (!newPassword || newPassword.length < 6) {
+        return res.status(400).json({ message: "새 비밀번호는 6자 이상이어야 합니다." });
+      }
+      const { authStorage: as } = await import("./replit_integrations/auth/storage");
+      const targetUser = await as.getUserByUsername(username);
+      if (!targetUser) {
+        return res.status(404).json({ message: `사용자 '${username}'를 찾을 수 없습니다.` });
+      }
+      await as.updateUser(targetUser.id, { password: newPassword, mustChangePassword: false });
+      await as.updateLoginAttempts(targetUser.id, { failedLoginAttempts: 0, lockedUntil: null });
+      console.log(`[reset-admin-pw] ${username} 비밀번호 초기화 완료`);
+      res.json({ message: `'${username}' 비밀번호가 초기화되었습니다.`, username });
+    } catch (err: any) {
+      console.error("[reset-admin-pw] 실패:", err?.message);
+      res.status(500).json({ message: "초기화 실패: " + err?.message });
+    }
+  });
+
   // ── GET /api/admin/uploads-export ────────────────────────────────────────
   // 토큰 기반 이미지 ZIP 내보내기 (로컬 Windows 서버 동기화용)
   // 인증: ?token=DB_SYNC_TOKEN 환경변수 값
