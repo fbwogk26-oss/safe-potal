@@ -528,7 +528,7 @@ export default function HeatIllnessSurveyList() {
       ) : (
         <div className="bg-white border rounded-xl overflow-hidden">
           {/* 헤더 */}
-          <div className="grid grid-cols-[auto_auto_1fr_1fr_auto_auto_auto_auto_auto] gap-x-2 items-center px-4 py-2 bg-sky-500 text-white text-xs font-semibold">
+          <div className="grid grid-cols-[auto_auto_1fr_auto_2fr_auto_auto_auto_auto] gap-x-2 items-center px-4 py-2 bg-sky-500 text-white text-xs font-semibold">
             <input
               type="checkbox"
               className="w-4 h-4 accent-white cursor-pointer"
@@ -539,8 +539,8 @@ export default function HeatIllnessSurveyList() {
             />
             <span className="w-8 text-center">번호</span>
             <span>이름</span>
-            <span>부서</span>
-            <span className="w-20 hidden lg:block">국소명</span>
+            <span className="w-24">부서</span>
+            <span>국소명</span>
             <span className="w-12 text-center">점수</span>
             <span className="w-16 text-center hidden sm:block">취약도</span>
             <span className="w-28 hidden md:block">등록일시</span>
@@ -555,7 +555,7 @@ export default function HeatIllnessSurveyList() {
               return (
                 <div key={s.id}>
                   <div
-                    className={`grid grid-cols-[auto_auto_1fr_1fr_auto_auto_auto_auto_auto] gap-x-2 items-center px-4 py-3 hover:bg-sky-50/40 cursor-pointer transition-colors
+                    className={`grid grid-cols-[auto_auto_1fr_auto_2fr_auto_auto_auto_auto] gap-x-2 items-center px-4 py-3 hover:bg-sky-50/40 cursor-pointer transition-colors
                       ${(s.riskLevel === "높음" || s.riskLevel === "매우높음") ? "border-l-4 border-orange-400" : "border-l-4 border-transparent"}
                       ${isSelected ? "bg-sky-50" : ""}`}
                     onClick={() => setExpandedId(isExpanded ? null : s.id)}
@@ -569,8 +569,8 @@ export default function HeatIllnessSurveyList() {
                     />
                     <span className="w-8 text-center text-xs font-medium text-muted-foreground">{idx + 1}</span>
                     <span className="font-semibold text-sm text-foreground truncate">{s.name}</span>
-                    <span className="text-xs text-muted-foreground truncate">{s.department}</span>
-                    <span className="w-20 hidden lg:block text-xs text-sky-600 truncate">{s.workArea ?? "—"}</span>
+                    <span className="w-24 text-xs text-muted-foreground truncate">{s.department}</span>
+                    <span className="text-xs text-sky-600 truncate">{s.workArea ?? "—"}</span>
                     <span className="w-12 text-center font-bold text-sm text-foreground">{s.score}점</span>
                     <span className="w-16 hidden sm:flex justify-center">
                       <Badge variant="outline" className={`text-xs px-1.5 ${rb.badgeClass}`}>{rb.label}</Badge>
