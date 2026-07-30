@@ -569,7 +569,7 @@ export default function HeatIllnessSurveyList() {
                       onChange={() => toggleOne(s.id)}
                       onClick={(e) => e.stopPropagation()}
                     />
-                    <span className="w-8 text-center text-xs font-medium text-muted-foreground">{idx + 1}</span>
+                    <span className="w-8 text-center text-xs font-medium text-muted-foreground">{filtered.length - idx}</span>
                     <span className="w-16 font-semibold text-sm text-foreground truncate">{s.name}</span>
                     <span className="w-24 text-xs text-muted-foreground truncate">{s.department}</span>
                     <span className="text-xs text-sky-600 truncate">{s.workArea ?? "—"}</span>
