@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import {
   Thermometer, RefreshCw, Trash2, QrCode, Copy, Search, Calendar, ChevronDown, ChevronUp,
-  AlertTriangle, CheckCircle2, TrendingUp, Users, Download,
+  AlertTriangle, CheckCircle2, TrendingUp, Users, Download, Loader2, FileArchive,
 } from "lucide-react";
 
 const CHECKLIST_FULL = [
@@ -162,6 +162,76 @@ function SurveyResultCard({ survey }: { survey: Survey }) {
   );
 }
 
+/** 결과카드 HTML 문자열 생성 (html2canvas 캡쳐용, inline style 전용) */
+function buildCardHtml(s: Survey): string {
+  const rm = RISK_META[s.riskLevel] ?? RISK_META["낮음"];
+  const d = new Date(s.createdAt);
+  const dateStr = `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일`;
+
+  const riskColors: Record<string, { bar: string; text: string; bg: string; border: string }> = {
+    낮음:    { bar: "#22c55e", text: "#15803d", bg: "#f0fdf4", border: "#86efac" },
+    보통:    { bar: "#eab308", text: "#a16207", bg: "#fefce8", border: "#fde047" },
+    높음:    { bar: "#f97316", text: "#c2410c", bg: "#fff7ed", border: "#fdba74" },
+    매우높음:{ bar: "#ef4444", text: "#b91c1c", bg: "#fef2f2", border: "#fca5a5" },
+  };
+  const rc = riskColors[s.riskLevel] ?? riskColors["낮음"];
+
+  const answerRows = CHECKLIST_FULL.map((item, idx) => {
+    const ans = s.answers[idx] ?? "—";
+    const isRisk = item.reverse ? ans === "아니오" : ans === "예";
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;border-radius:6px;background:${isRisk ? "#fff7ed" : "#f8fafc"};border:1px solid ${isRisk ? "#fed7aa" : "#e2e8f0"};margin-bottom:4px;">
+      <span style="font-size:11px;color:${isRisk ? "#c2410c" : "#64748b"};flex:1;">${idx + 1}. ${item.label}</span>
+      <span style="font-size:12px;font-weight:700;color:${isRisk ? "#ea580c" : "#94a3b8"};margin-left:8px;">${ans}</span>
+    </div>`;
+  }).join("");
+
+  const scoreBarPct = Math.min((s.score / 10) * 100, 95);
+
+  const infoRows = [
+    `<div style="display:flex;gap:12px;padding:5px 0;border-bottom:1px solid #f1f5f9;"><span style="font-size:11px;color:#94a3b8;width:48px;flex-shrink:0;">이름</span><span style="font-size:13px;font-weight:600;color:#0f172a;">${s.name}</span></div>`,
+    `<div style="display:flex;gap:12px;padding:5px 0;border-bottom:1px solid #f1f5f9;"><span style="font-size:11px;color:#94a3b8;width:48px;flex-shrink:0;">부서</span><span style="font-size:13px;font-weight:600;color:#0f172a;">${s.department}</span></div>`,
+    s.workArea ? `<div style="display:flex;gap:12px;padding:5px 0;"><span style="font-size:11px;color:#94a3b8;width:48px;flex-shrink:0;">국소명</span><span style="font-size:13px;font-weight:600;color:#0f172a;">${s.workArea}</span></div>` : "",
+  ].join("");
+
+  return `<div style="width:380px;background:linear-gradient(180deg,#f0f9ff 0%,#ffffff 100%);font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;padding:16px;">
+    <!-- 헤더 -->
+    <div style="background:linear-gradient(90deg,#0ea5e9,#22d3ee);border-radius:12px;padding:14px 16px;text-align:center;color:white;margin-bottom:14px;">
+      <div style="font-size:11px;opacity:0.85;margin-bottom:3px;">야외근로자용</div>
+      <div style="font-size:15px;font-weight:700;">온열질환 특성 자가진단표</div>
+      <div style="font-size:10px;opacity:0.75;margin-top:3px;">${dateStr} · 작업 전 실시</div>
+    </div>
+    <!-- 완료 아이콘 -->
+    <div style="text-align:center;margin-bottom:14px;">
+      <div style="display:inline-flex;align-items:center;justify-content:center;width:52px;height:52px;border-radius:50%;background:#f0fdf4;border:3px solid #86efac;margin-bottom:6px;">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <div style="font-size:15px;font-weight:700;color:#0f172a;">자가진단 등록 완료</div>
+    </div>
+    <!-- 정보 카드 -->
+    <div style="background:white;border:1px solid #e0f2fe;border-radius:12px;padding:12px 14px;margin-bottom:12px;">${infoRows}</div>
+    <!-- 취약도 카드 -->
+    <div style="background:${rc.bg};border:2px solid ${rc.border};border-radius:12px;padding:14px;margin-bottom:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <span style="font-size:11px;color:#475569;font-weight:600;">온열질환 취약도</span>
+        <span style="font-size:18px;font-weight:900;color:${rc.text};">${rm.label}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+        <div style="flex:1;height:10px;border-radius:999px;background:linear-gradient(90deg,#86efac,#fde047,#fb923c,#f87171);position:relative;">
+          <div style="position:absolute;top:50%;left:${scoreBarPct}%;transform:translate(-50%,-50%);width:14px;height:14px;background:white;border:2px solid #374151;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.2);"></div>
+        </div>
+        <span style="font-size:20px;font-weight:900;color:${rc.text};">${s.score}점</span>
+      </div>
+      <div style="display:flex;gap:2px;margin-bottom:8px;">
+        ${Array.from({length:10}).map((_,i)=>`<div style="flex:1;height:6px;border-radius:3px;background:${i < s.score ? rc.bar : "#e2e8f0"};"></div>`).join("")}
+      </div>
+      <div style="font-size:11px;color:${rc.text};">${rm.desc}</div>
+    </div>
+    <!-- 항목별 응답 -->
+    <div style="font-size:11px;font-weight:600;color:#64748b;margin-bottom:6px;">항목별 응답</div>
+    ${answerRows}
+  </div>`;
+}
+
 export default function HeatIllnessSurveyList() {
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -171,6 +241,7 @@ export default function HeatIllnessSurveyList() {
   const [dateTo, setDateTo] = useState("");
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [showQr, setShowQr] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const publicUrl = `${window.location.origin}/heat-illness/submit`;
 
@@ -229,6 +300,55 @@ export default function HeatIllnessSurveyList() {
     a.click();
   }
 
+  async function exportZip() {
+    if (filtered.length === 0) { toast({ title: "다운로드할 데이터가 없습니다." }); return; }
+    setExporting(true);
+    try {
+      const [{ default: JSZip }, { default: html2canvas }] = await Promise.all([
+        import("jszip"),
+        import("html2canvas"),
+      ]);
+
+      const zip = new JSZip();
+
+      // CSV
+      const header = ["번호", "이름", "부서", "국소명", "점수", "취약도", "등록일시", ...CHECKLIST_FULL.map(c => c.label)];
+      const rows = filtered.map((s) => [s.id, s.name, s.department, s.workArea ?? "", s.score, s.riskLevel, formatDate(s.createdAt), ...s.answers.map((a) => a ?? "")]);
+      const csv = [header, ...rows].map((r) => r.map(String).join(",")).join("\n");
+      zip.file("자가진단_목록.csv", "\uFEFF" + csv);
+
+      // 결과카드 이미지
+      const cardsFolder = zip.folder("결과카드")!;
+      const wrapper = document.createElement("div");
+      wrapper.style.cssText = "position:fixed;left:-9999px;top:0;z-index:-1;background:transparent;";
+      document.body.appendChild(wrapper);
+
+      for (const s of filtered) {
+        wrapper.innerHTML = buildCardHtml(s);
+        const el = wrapper.firstElementChild as HTMLElement;
+        const canvas = await html2canvas(el, { scale: 2, useCORS: true, logging: false, backgroundColor: "#f0f9ff" });
+        const blob = await new Promise<Blob>((res) => canvas.toBlob((b) => res(b!), "image/png"));
+        const d = new Date(s.createdAt);
+        const datePart = `${d.getMonth()+1}월${d.getDate()}일`;
+        cardsFolder.file(`${String(s.id).padStart(3,"0")}_${s.name}_${s.department}_${datePart}.png`, blob);
+      }
+
+      document.body.removeChild(wrapper);
+
+      const zipBlob = await zip.generateAsync({ type: "blob" });
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `온열질환자가진단_${new Date().toISOString().slice(0,10)}.zip`;
+      a.click();
+      toast({ title: `ZIP 다운로드 완료 (${filtered.length}건)` });
+    } catch (e: any) {
+      toast({ title: "다운로드 실패", description: e.message, variant: "destructive" });
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <div className="space-y-5">
       {/* 타이틀 */}
@@ -248,6 +368,11 @@ export default function HeatIllnessSurveyList() {
           </Button>
           <Button size="sm" variant="outline" onClick={exportCsv}>
             <Download className="w-4 h-4 mr-1" /> CSV
+          </Button>
+          <Button size="sm" variant="outline" onClick={exportZip} disabled={exporting}>
+            {exporting
+              ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> 생성 중...</>
+              : <><FileArchive className="w-4 h-4 mr-1" /> ZIP+이미지</>}
           </Button>
           <Button size="sm" variant="outline" onClick={() => refetch()}>
             <RefreshCw className="w-4 h-4 mr-1" /> 새로고침
