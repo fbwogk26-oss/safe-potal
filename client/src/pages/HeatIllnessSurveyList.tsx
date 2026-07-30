@@ -236,12 +236,15 @@ export default function HeatIllnessSurveyList() {
   const { toast } = useToast();
   const qc = useQueryClient();
 
-  const [search, setSearch] = useState("");
+  const [filterName, setFilterName] = useState("");
+  const [filterDept, setFilterDept] = useState("");
+  const [filterRisk, setFilterRisk] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [showQr, setShowQr] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
   const publicUrl = `${window.location.origin}/heat-illness/submit`;
 
@@ -263,13 +266,18 @@ export default function HeatIllnessSurveyList() {
       const res = await fetch(`/api/heat-illness-surveys/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("삭제 실패");
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/heat-illness-surveys"] }); toast({ title: "삭제되었습니다." }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/heat-illness-surveys"] }); },
     onError: () => toast({ title: "삭제 실패", variant: "destructive" }),
   });
 
+  // 고유 부서 목록
+  const deptOptions = Array.from(new Set(surveys.map((s) => s.department))).sort();
+
   const filtered = surveys.filter((s) => {
-    const q = search.toLowerCase();
-    return !q || s.name.includes(q) || s.department.includes(q) || (s.workArea ?? "").includes(q);
+    if (filterName && !s.name.includes(filterName)) return false;
+    if (filterDept && s.department !== filterDept) return false;
+    if (filterRisk && s.riskLevel !== filterRisk) return false;
+    return true;
   });
 
   // 통계
@@ -279,6 +287,36 @@ export default function HeatIllnessSurveyList() {
     avgScore: filtered.length ? (filtered.reduce((a, b) => a + b.score, 0) / filtered.length).toFixed(1) : "0",
   };
 
+  // 전체선택 상태
+  const allChecked = filtered.length > 0 && filtered.every((s) => selectedIds.has(s.id));
+  const someChecked = filtered.some((s) => selectedIds.has(s.id));
+
+  function toggleAll() {
+    if (allChecked) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filtered.map((s) => s.id)));
+    }
+  }
+
+  function toggleOne(id: number) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  async function deleteSelected() {
+    const ids = Array.from(selectedIds);
+    if (!ids.length) return;
+    if (!confirm(`선택한 ${ids.length}건을 삭제하시겠습니까?`)) return;
+    for (const id of ids) await deleteMut.mutateAsync(id).catch(() => {});
+    setSelectedIds(new Set());
+    qc.invalidateQueries({ queryKey: ["/api/heat-illness-surveys"] });
+    toast({ title: `${ids.length}건 삭제되었습니다.` });
+  }
+
   function copyUrl() {
     navigator.clipboard.writeText(publicUrl);
     toast({ title: "링크가 복사되었습니다." });
@@ -286,8 +324,8 @@ export default function HeatIllnessSurveyList() {
 
   function exportCsv() {
     const header = ["번호", "이름", "부서", "국소명", "점수", "취약도", "등록일시", ...CHECKLIST_FULL.map(c => c.label)];
-    const rows = filtered.map((s) => [
-      s.id, s.name, s.department, s.workArea ?? "",
+    const rows = filtered.map((s, idx) => [
+      idx + 1, s.name, s.department, s.workArea ?? "",
       s.score, s.riskLevel, formatDate(s.createdAt),
       ...s.answers.map((a) => a ?? ""),
     ]);
@@ -313,7 +351,7 @@ export default function HeatIllnessSurveyList() {
 
       // CSV
       const header = ["번호", "이름", "부서", "국소명", "점수", "취약도", "등록일시", ...CHECKLIST_FULL.map(c => c.label)];
-      const rows = filtered.map((s) => [s.id, s.name, s.department, s.workArea ?? "", s.score, s.riskLevel, formatDate(s.createdAt), ...s.answers.map((a) => a ?? "")]);
+      const rows = filtered.map((s, idx) => [idx + 1, s.name, s.department, s.workArea ?? "", s.score, s.riskLevel, formatDate(s.createdAt), ...s.answers.map((a) => a ?? "")]);
       const csv = [header, ...rows].map((r) => r.map(String).join(",")).join("\n");
       zip.file("자가진단_목록.csv", "\uFEFF" + csv);
 
@@ -323,14 +361,14 @@ export default function HeatIllnessSurveyList() {
       wrapper.style.cssText = "position:fixed;left:-9999px;top:0;z-index:-1;background:transparent;";
       document.body.appendChild(wrapper);
 
-      for (const s of filtered) {
+      for (const [i, s] of filtered.entries()) {
         wrapper.innerHTML = buildCardHtml(s);
         const el = wrapper.firstElementChild as HTMLElement;
         const canvas = await html2canvas(el, { scale: 2, useCORS: true, logging: false, backgroundColor: "#f0f9ff" });
         const blob = await new Promise<Blob>((res) => canvas.toBlob((b) => res(b!), "image/png"));
         const d = new Date(s.createdAt);
         const datePart = `${d.getMonth()+1}월${d.getDate()}일`;
-        cardsFolder.file(`${String(s.id).padStart(3,"0")}_${s.name}_${s.department}_${datePart}.png`, blob);
+        cardsFolder.file(`${String(i + 1).padStart(3,"0")}_${s.name}_${s.department}_${datePart}.png`, blob);
       }
 
       document.body.removeChild(wrapper);
@@ -362,7 +400,12 @@ export default function HeatIllnessSurveyList() {
             <p className="text-xs text-muted-foreground">야외근로자 자가진단 제출 현황</p>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          {someChecked && (
+            <Button size="sm" variant="destructive" onClick={deleteSelected}>
+              <Trash2 className="w-4 h-4 mr-1" /> 선택 삭제 ({selectedIds.size})
+            </Button>
+          )}
           <Button size="sm" variant="outline" onClick={() => setShowQr(!showQr)}>
             <QrCode className="w-4 h-4 mr-1" /> QR / 링크
           </Button>
@@ -421,21 +464,56 @@ export default function HeatIllnessSurveyList() {
       </div>
 
       {/* 필터 */}
-      <div className="flex flex-col sm:flex-row gap-2">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            className="pl-9 h-9 text-sm"
-            placeholder="이름·부서·국소명 검색"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <Calendar className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-          <Input type="date" className="h-9 text-sm w-36" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-          <span className="text-muted-foreground text-sm">~</span>
-          <Input type="date" className="h-9 text-sm w-36" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+      <div className="bg-white border rounded-xl p-3 space-y-2">
+        <div className="flex flex-wrap gap-2">
+          {/* 이름 */}
+          <div className="relative flex-1 min-w-[120px]">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+            <Input
+              className="pl-8 h-8 text-sm"
+              placeholder="이름 검색"
+              value={filterName}
+              onChange={(e) => setFilterName(e.target.value)}
+            />
+          </div>
+          {/* 부서 */}
+          <div className="relative flex-1 min-w-[130px]">
+            <select
+              className="w-full h-8 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+              value={filterDept}
+              onChange={(e) => setFilterDept(e.target.value)}
+            >
+              <option value="">전체 부서</option>
+              {deptOptions.map((d) => <option key={d} value={d}>{d}</option>)}
+            </select>
+          </div>
+          {/* 취약도 */}
+          <div className="relative flex-1 min-w-[110px]">
+            <select
+              className="w-full h-8 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+              value={filterRisk}
+              onChange={(e) => setFilterRisk(e.target.value)}
+            >
+              <option value="">전체 취약도</option>
+              {["낮음","보통","높음","매우높음"].map((r) => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </div>
+          {/* 날짜 */}
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
+            <Input type="date" className="h-8 text-sm w-32" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+            <span className="text-muted-foreground text-xs">~</span>
+            <Input type="date" className="h-8 text-sm w-32" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+          </div>
+          {/* 초기화 */}
+          {(filterName || filterDept || filterRisk || dateFrom || dateTo) && (
+            <button
+              className="text-xs text-muted-foreground hover:text-foreground underline flex-shrink-0 self-center"
+              onClick={() => { setFilterName(""); setFilterDept(""); setFilterRisk(""); setDateFrom(""); setDateTo(""); }}
+            >
+              초기화
+            </button>
+          )}
         </div>
       </div>
 
@@ -450,27 +528,45 @@ export default function HeatIllnessSurveyList() {
       ) : (
         <div className="bg-white border rounded-xl overflow-hidden">
           {/* 헤더 */}
-          <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-x-3 items-center px-4 py-2 bg-sky-500 text-white text-xs font-semibold">
+          <div className="grid grid-cols-[auto_auto_1fr_auto_auto_auto_auto] gap-x-3 items-center px-4 py-2 bg-sky-500 text-white text-xs font-semibold">
+            {/* 전체선택 체크박스 */}
+            <input
+              type="checkbox"
+              className="w-4 h-4 accent-white cursor-pointer"
+              checked={allChecked}
+              ref={(el) => { if (el) el.indeterminate = someChecked && !allChecked; }}
+              onChange={toggleAll}
+              onClick={(e) => e.stopPropagation()}
+            />
             <span className="w-8 text-center">번호</span>
             <span>이름 · 부서</span>
             <span className="w-12 text-center">점수</span>
             <span className="w-16 text-center hidden sm:block">취약도</span>
             <span className="w-28 hidden md:block">등록일시</span>
-            <span className="w-16 text-center">관리</span>
+            <span className="w-14 text-center">관리</span>
           </div>
 
           <div className="divide-y divide-gray-100">
-            {filtered.map((s) => {
+            {filtered.map((s, idx) => {
               const rb = RISK_META[s.riskLevel] ?? RISK_META["낮음"];
               const isExpanded = expandedId === s.id;
+              const isSelected = selectedIds.has(s.id);
               return (
                 <div key={s.id}>
                   <div
-                    className={`grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-x-3 items-center px-4 py-3 hover:bg-sky-50/40 cursor-pointer transition-colors
-                      ${(s.riskLevel === "높음" || s.riskLevel === "매우높음") ? "border-l-4 border-orange-400" : "border-l-4 border-transparent"}`}
+                    className={`grid grid-cols-[auto_auto_1fr_auto_auto_auto_auto] gap-x-3 items-center px-4 py-3 hover:bg-sky-50/40 cursor-pointer transition-colors
+                      ${(s.riskLevel === "높음" || s.riskLevel === "매우높음") ? "border-l-4 border-orange-400" : "border-l-4 border-transparent"}
+                      ${isSelected ? "bg-sky-50" : ""}`}
                     onClick={() => setExpandedId(isExpanded ? null : s.id)}
                   >
-                    <span className="w-8 text-center text-xs text-muted-foreground">{s.id}</span>
+                    <input
+                      type="checkbox"
+                      className="w-4 h-4 accent-sky-500 cursor-pointer"
+                      checked={isSelected}
+                      onChange={() => toggleOne(s.id)}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                    <span className="w-8 text-center text-xs font-medium text-muted-foreground">{idx + 1}</span>
                     <div>
                       <span className="font-semibold text-sm text-foreground">{s.name}</span>
                       <span className="text-xs text-muted-foreground ml-2">{s.department}</span>
@@ -481,7 +577,7 @@ export default function HeatIllnessSurveyList() {
                       <Badge variant="outline" className={`text-xs px-1.5 ${rb.badgeClass}`}>{rb.label}</Badge>
                     </span>
                     <span className="w-28 hidden md:block text-xs text-muted-foreground">{formatDate(s.createdAt)}</span>
-                    <div className="w-16 flex items-center justify-center gap-1">
+                    <div className="w-14 flex items-center justify-center gap-1">
                       {isExpanded
                         ? <ChevronUp className="w-4 h-4 text-muted-foreground" />
                         : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
@@ -489,7 +585,10 @@ export default function HeatIllnessSurveyList() {
                         className="p-1 text-red-400 hover:text-red-600 transition-colors"
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (confirm(`${s.name}의 자가진단 기록을 삭제하시겠습니까?`)) deleteMut.mutate(s.id);
+                          if (confirm(`${s.name}의 자가진단 기록을 삭제하시겠습니까?`)) {
+                            deleteMut.mutate(s.id);
+                            setSelectedIds((p) => { const n = new Set(p); n.delete(s.id); return n; });
+                          }
                         }}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
