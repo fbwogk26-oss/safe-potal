@@ -87,9 +87,9 @@ function getRiskLevel(score: number): { level: string; color: string; bgColor: s
 }
 
 const DEPTS = [
-  "대구운용부", "경북운용부", "서대구운용팀", "동대구운용팀", "포항운용팀", "구미운용팀",
-  "안동운용팀", "경주운용팀", "영천운용팀", "경산운용팀", "성서운용팀",
-  "안전환경부", "경영지원부", "운용지원부", "기타",
+  "동대구운용팀", "포항운용팀", "안동운용팀", "서대구운용팀", "남대구운용팀",
+  "구미운용팀", "문경운용팀", "운용지원부", "동대구운용부", "서대구운용부",
+  "현장경영팀", "대구본부",
 ];
 
 type Step = "info" | "checklist" | "done";
@@ -212,11 +212,11 @@ export default function PublicHeatIllnessSurvey() {
                 </select>
               </div>
               <div>
-                <Label className="text-sm font-semibold mb-1 block">작업구역 <span className="text-xs text-muted-foreground font-normal">(선택)</span></Label>
+                <Label className="text-sm font-semibold mb-1 block">작업국소 <span className="text-xs text-muted-foreground font-normal">(선택)</span></Label>
                 <Input
                   value={workArea}
                   onChange={(e) => setWorkArea(e.target.value)}
-                  placeholder="예: 3구역, A동 외부 등"
+                  placeholder="예: 3국소, A동 외부, 포항 현장 등"
                   className="text-base h-12"
                 />
               </div>
@@ -340,7 +340,24 @@ export default function PublicHeatIllnessSurvey() {
             </div>
             <div className="text-center">
               <h2 className="text-xl font-bold text-foreground">자가진단 등록 완료</h2>
-              <p className="text-sm text-muted-foreground mt-1">{name} · {department}</p>
+            </div>
+
+            {/* 제출자 정보 카드 */}
+            <div className="w-full bg-white border border-sky-200 rounded-xl px-4 py-3 flex flex-col gap-1.5 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground w-16 flex-shrink-0">이름</span>
+                <span className="font-semibold text-foreground">{name}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground w-16 flex-shrink-0">부서</span>
+                <span className="font-semibold text-foreground">{department}</span>
+              </div>
+              {workArea && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground w-16 flex-shrink-0">작업국소</span>
+                  <span className="font-semibold text-foreground">{workArea}</span>
+                </div>
+              )}
             </div>
 
             {/* 결과 카드 */}
