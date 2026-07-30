@@ -273,12 +273,14 @@ export default function HeatIllnessSurveyList() {
   // 고유 부서 목록
   const deptOptions = Array.from(new Set(surveys.map((s) => s.department))).sort();
 
-  const filtered = surveys.filter((s) => {
-    if (filterName && !s.name.includes(filterName)) return false;
-    if (filterDept && s.department !== filterDept) return false;
-    if (filterRisk && s.riskLevel !== filterRisk) return false;
-    return true;
-  });
+  const filtered = surveys
+    .filter((s) => {
+      if (filterName && !s.name.includes(filterName)) return false;
+      if (filterDept && s.department !== filterDept) return false;
+      if (filterRisk && s.riskLevel !== filterRisk) return false;
+      return true;
+    })
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   // 통계
   const stats = {
@@ -528,7 +530,7 @@ export default function HeatIllnessSurveyList() {
       ) : (
         <div className="bg-white border rounded-xl overflow-hidden">
           {/* 헤더 */}
-          <div className="grid grid-cols-[auto_auto_1fr_auto_2fr_auto_auto_auto_auto] gap-x-2 items-center px-4 py-2 bg-sky-500 text-white text-xs font-semibold">
+          <div className="grid grid-cols-[auto_auto_auto_auto_1fr_auto_auto_auto_auto] gap-x-2 items-center px-4 py-2 bg-sky-500 text-white text-xs font-semibold">
             <input
               type="checkbox"
               className="w-4 h-4 accent-white cursor-pointer"
@@ -538,7 +540,7 @@ export default function HeatIllnessSurveyList() {
               onClick={(e) => e.stopPropagation()}
             />
             <span className="w-8 text-center">번호</span>
-            <span>이름</span>
+            <span className="w-16">이름</span>
             <span className="w-24">부서</span>
             <span>국소명</span>
             <span className="w-12 text-center">점수</span>
@@ -555,7 +557,7 @@ export default function HeatIllnessSurveyList() {
               return (
                 <div key={s.id}>
                   <div
-                    className={`grid grid-cols-[auto_auto_1fr_auto_2fr_auto_auto_auto_auto] gap-x-2 items-center px-4 py-3 hover:bg-sky-50/40 cursor-pointer transition-colors
+                    className={`grid grid-cols-[auto_auto_auto_auto_1fr_auto_auto_auto_auto] gap-x-2 items-center px-4 py-3 hover:bg-sky-50/40 cursor-pointer transition-colors
                       ${(s.riskLevel === "높음" || s.riskLevel === "매우높음") ? "border-l-4 border-orange-400" : "border-l-4 border-transparent"}
                       ${isSelected ? "bg-sky-50" : ""}`}
                     onClick={() => setExpandedId(isExpanded ? null : s.id)}
@@ -568,7 +570,7 @@ export default function HeatIllnessSurveyList() {
                       onClick={(e) => e.stopPropagation()}
                     />
                     <span className="w-8 text-center text-xs font-medium text-muted-foreground">{idx + 1}</span>
-                    <span className="font-semibold text-sm text-foreground truncate">{s.name}</span>
+                    <span className="w-16 font-semibold text-sm text-foreground truncate">{s.name}</span>
                     <span className="w-24 text-xs text-muted-foreground truncate">{s.department}</span>
                     <span className="text-xs text-sky-600 truncate">{s.workArea ?? "—"}</span>
                     <span className="w-12 text-center font-bold text-sm text-foreground">{s.score}점</span>
