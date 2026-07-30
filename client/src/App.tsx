@@ -50,6 +50,8 @@ import SafetyManagerReports from "@/pages/SafetyManagerReports";
 import HealthManagerReports from "@/pages/HealthManagerReports";
 import HeatWaveChecklist from "@/pages/HeatWaveChecklist";
 import HeatWaveMapReport from "@/pages/HeatWaveMapReport";
+import PublicHeatIllnessSurvey from "@/pages/PublicHeatIllnessSurvey";
+import HeatIllnessSurveyList from "@/pages/HeatIllnessSurveyList";
 import AisSafetyRate from "@/pages/AisSafetyRate";
 import SafetyCostBudget from "@/pages/SafetyCostBudget";
 import SafetyScoreItems from "@/pages/SafetyScoreItems";
@@ -151,6 +153,7 @@ function RouterContent() {
       <Route path="/safety-manager-reports">{() => <G canAccess={canViewInspections} component={SafetyManagerReports} />}</Route>
       <Route path="/health-manager-reports">{() => <G canAccess={canViewInspections} component={HealthManagerReports} />}</Route>
       <Route path="/heat-wave-checklist">{() => <G canAccess={canViewMusculoskeletal} component={HeatWaveChecklist} />}</Route>
+      <Route path="/heat-illness-survey">{() => <G canAccess={canViewMusculoskeletal} component={HeatIllnessSurveyList} />}</Route>
       <Route path="/safety-cost-budget">{() => <G canAccess={canViewInspections} component={SafetyCostBudget} />}</Route>
       <Route path="/safety-score-items">{() => <G canAccess={canEditSafetyScores} component={SafetyScoreItems} />}</Route>
       <Route path="/ais-safety-rate">{() => <AisSafetyRate />}</Route>
@@ -206,6 +209,9 @@ function AppContent() {
   }
   if (location.startsWith("/heatwave-report")) {
     return <Switch><Route path="/heatwave-report" component={HeatWaveMapReport} /></Switch>;
+  }
+  if (location.startsWith("/heat-illness/submit")) {
+    return <Switch><Route path="/heat-illness/submit" component={PublicHeatIllnessSurvey} /></Switch>;
   }
 
   if (isLoading) {

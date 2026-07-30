@@ -7,7 +7,7 @@ import { z } from "zod";
 import rateLimit from "express-rate-limit";
 import { createHash } from "crypto";
 import { db } from "./db";
-import { teams, trafficFines, accidentReports, educationSignatures, safetyInspections, educationTasks, safetyCostRecords, insertSafetyScoreItemSchema, type SafetyScoreItem, type InsertSafetyScoreItem } from "@shared/schema";
+import { teams, trafficFines, accidentReports, educationSignatures, safetyInspections, educationTasks, safetyCostRecords, insertSafetyScoreItemSchema, heatIllnessSurveys, type SafetyScoreItem, type InsertSafetyScoreItem } from "@shared/schema";
 import { eq, and, count, sql, inArray } from "drizzle-orm";
 import multer from "multer";
 import path from "path";
@@ -4572,6 +4572,62 @@ ${buildEmailFooter()}
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ message: "폭염 체크리스트 삭제에 실패했습니다" });
+    }
+  });
+
+  // ── 온열질환 자가진단 ────────────────────────────────────────────────────────
+
+  // [공개] 자가진단 등록 (로그인 불필요)
+  app.post("/api/public/heat-illness-surveys", async (req: any, res) => {
+    try {
+      const { name, department, workArea, answers, score, riskLevel } = req.body;
+      if (!name || !department || !Array.isArray(answers) || answers.length !== 10) {
+        return res.status(400).json({ message: "필수 항목이 누락되었습니다." });
+      }
+      const submittedIp = req.headers["x-forwarded-for"]?.toString().split(",")[0] || req.socket?.remoteAddress || null;
+      const [record] = await db.insert(heatIllnessSurveys).values({
+        name: String(name).trim().slice(0, 50),
+        department: String(department).trim().slice(0, 100),
+        workArea: workArea ? String(workArea).trim().slice(0, 100) : null,
+        answers,
+        score: Number(score) || 0,
+        riskLevel: String(riskLevel || "낮음"),
+        submittedIp,
+      }).returning();
+      res.json(record);
+    } catch (err: any) {
+      console.error("[heat-illness] 등록 실패:", err?.message);
+      res.status(500).json({ message: "등록에 실패했습니다." });
+    }
+  });
+
+  // [관리자] 목록 조회
+  app.get("/api/heat-illness-surveys", isAuthenticated, async (req: any, res) => {
+    try {
+      const { from, to } = req.query as { from?: string; to?: string };
+      let query = db.select().from(heatIllnessSurveys);
+      const conditions: any[] = [];
+      if (from) conditions.push(sql`${heatIllnessSurveys.createdAt} >= ${from}::date`);
+      if (to)   conditions.push(sql`${heatIllnessSurveys.createdAt} <  (${to}::date + interval '1 day')`);
+      const rows = conditions.length
+        ? await db.select().from(heatIllnessSurveys).where(and(...conditions)).orderBy(sql`${heatIllnessSurveys.createdAt} desc`)
+        : await db.select().from(heatIllnessSurveys).orderBy(sql`${heatIllnessSurveys.createdAt} desc`);
+      res.json(rows);
+    } catch (err: any) {
+      console.error("[heat-illness] 조회 실패:", err?.message);
+      res.status(500).json({ message: "조회에 실패했습니다." });
+    }
+  });
+
+  // [관리자] 삭제
+  app.delete("/api/heat-illness-surveys/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = Number(req.params.id);
+      await db.delete(heatIllnessSurveys).where(eq(heatIllnessSurveys.id, id));
+      res.status(204).send();
+    } catch (err: any) {
+      console.error("[heat-illness] 삭제 실패:", err?.message);
+      res.status(500).json({ message: "삭제에 실패했습니다." });
     }
   });
 

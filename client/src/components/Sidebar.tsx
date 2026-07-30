@@ -38,6 +38,7 @@ import {
   Siren,
   Sun,
   BarChart2,
+  Thermometer,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -111,6 +112,7 @@ const NAV_SECTIONS: NavSection[] = [
           { label: "근골격계질환", href: "/musculoskeletal", icon: Bone, permissionKey: "canViewMusculoskeletal" },
           { label: "보건관리자 보고서", href: "/health-manager-reports", icon: Stethoscope, permissionKey: "canViewHealthManagerReports" },
           { label: "폭염 일일 체크리스트", href: "/heat-wave-checklist", icon: Sun, permissionKey: "canViewHeatWaveChecklist" },
+          { label: "온열질환 자가진단", href: "/heat-illness-survey", icon: Thermometer, permissionKey: "canViewHeatWaveChecklist" },
         ],
       },
     ],

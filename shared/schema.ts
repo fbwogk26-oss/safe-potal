@@ -1153,6 +1153,23 @@ export const insertAisTbmBadNoteSchema = createInsertSchema(aisTbmBadNotes).omit
 export type AisTbmBadNote = typeof aisTbmBadNotes.$inferSelect;
 export type InsertAisTbmBadNote = z.infer<typeof insertAisTbmBadNoteSchema>;
 
+// === 온열질환 자가진단 ===
+export const heatIllnessSurveys = pgTable("heat_illness_surveys", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  department: text("department").notNull(),
+  workArea: text("work_area"),
+  // 10개 항목 각각 "예" | "아니오" | null
+  answers: jsonb("answers").$type<(string | null)[]>().notNull().default([]),
+  score: integer("score").notNull().default(0),
+  riskLevel: text("risk_level").notNull().default("낮음"), // 낮음 | 보통 | 높음 | 매우높음
+  submittedIp: text("submitted_ip"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const insertHeatIllnessSurveySchema = createInsertSchema(heatIllnessSurveys).omit({ id: true, createdAt: true });
+export type HeatIllnessSurvey = typeof heatIllnessSurveys.$inferSelect;
+export type InsertHeatIllnessSurvey = z.infer<typeof insertHeatIllnessSurveySchema>;
+
 // Export auth schema
 export * from "./models/auth";
 
