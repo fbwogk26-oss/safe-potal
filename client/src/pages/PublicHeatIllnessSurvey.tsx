@@ -120,7 +120,8 @@ export default function PublicHeatIllnessSurvey() {
   }
 
   function selectAll(value: string) {
-    setAnswers(Array(10).fill(value));
+    // 역문항(7번, index 6)은 "전체 아니오" 시 "예"로 설정해야 0점 유지
+    setAnswers(CHECKLIST.map((item) => (item.reverse ? (value === "아니오" ? "예" : "아니오") : value)));
   }
 
   async function handleSubmit() {
