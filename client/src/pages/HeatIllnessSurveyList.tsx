@@ -9,24 +9,24 @@ import {
   AlertTriangle, CheckCircle2, TrendingUp, Users, Download,
 } from "lucide-react";
 
-const CHECKLIST_LABELS = [
-  "몸 상태 이상",
-  "열이 식지 않음",
-  "기저질환·약복용",
-  "수면 부족",
-  "심신 피로",
-  "더위 민감",
-  "온열증상 경험 없음 (역)",
-  "작업 전념",
-  "계획대로 외부작업",
-  "스스로 처리",
+const CHECKLIST_FULL = [
+  { label: "몸 상태 이상", text: "오늘 아침 전과 다르게 몸 상태가 좋지 않다고 느낀다.", reverse: false },
+  { label: "열이 식지 않음", text: "최근 활동 후 쉬었으나 몸의 열이 식지 않는다고 느낀다.", reverse: false },
+  { label: "기저질환·약복용", text: "아래의 질환이 있거나, 약을 복용하였다.", reverse: false },
+  { label: "수면 부족", text: "어젯밤 설사, 음주로 인한 숙취, 근심걱정 등으로 인해 잠을 잘 이루지 못하였다.", reverse: false },
+  { label: "심신 피로", text: "최근 힘든 일이 있어 심신이 지쳐있다.", reverse: false },
+  { label: "더위 민감", text: "평소 에어컨을 틀어두어도 땀이 흐를 정도로 더위를 쉽게 느낀다.", reverse: false },
+  { label: "온열증상 경험 없음", text: "온열질환으로 인한 증상(어지러움, 두통, 열 등)을 경험한 적이 없다.", reverse: true },
+  { label: "작업 전념", text: "나는 일을 시작하게 되면 쉴새 없이 전념하게 된다.", reverse: false },
+  { label: "계획대로 외부작업", text: "폭염기간이라도 계획대로 반드시 외부작업 혹은 활동을 진행하려 한다.", reverse: false },
+  { label: "스스로 처리", text: "나에게 맡겨진 일을 가급적 스스로 하며, 일일이 챙겨 끝까지 처리하려 한다.", reverse: false },
 ];
 
-const RISK_BADGE: Record<string, { label: string; class: string }> = {
-  낮음: { label: "낮음", class: "bg-green-100 text-green-700 border-green-200" },
-  보통: { label: "보통", class: "bg-yellow-100 text-yellow-700 border-yellow-200" },
-  높음: { label: "높음", class: "bg-orange-100 text-orange-700 border-orange-200" },
-  매우높음: { label: "매우높음", class: "bg-red-100 text-red-700 border-red-200" },
+const RISK_META: Record<string, { label: string; badgeClass: string; cardClass: string; textClass: string; desc: string }> = {
+  낮음:    { label: "낮음",   badgeClass: "bg-green-100 text-green-700 border-green-200",   cardClass: "bg-green-50 border-green-200",   textClass: "text-green-700",  desc: "현재 온열질환 취약도가 낮습니다. 작업 중 수분 보충에 유의하세요." },
+  보통:    { label: "보통",   badgeClass: "bg-yellow-100 text-yellow-700 border-yellow-200", cardClass: "bg-yellow-50 border-yellow-200", textClass: "text-yellow-700", desc: "일부 위험요인이 있습니다. 규칙적인 휴식과 수분 보충이 필요합니다." },
+  높음:    { label: "높음",   badgeClass: "bg-orange-100 text-orange-700 border-orange-200", cardClass: "bg-orange-50 border-orange-200", textClass: "text-orange-700", desc: "온열질환 취약도가 높습니다. 관리자에게 보고하고 충분한 주의가 필요합니다." },
+  매우높음:{ label: "매우높음",badgeClass: "bg-red-100 text-red-700 border-red-200",         cardClass: "bg-red-50 border-red-200",       textClass: "text-red-700",    desc: "온열질환 위험이 매우 높습니다. 즉시 관리자에게 보고하고 외부 작업을 자제하세요." },
 };
 
 interface Survey {
@@ -45,28 +45,118 @@ function formatDate(iso: string) {
   return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
-function SurveyDetail({ survey }: { survey: Survey }) {
+/** 모바일 결과 화면을 그대로 재현한 카드 */
+function SurveyResultCard({ survey }: { survey: Survey }) {
+  const rm = RISK_META[survey.riskLevel] ?? RISK_META["낮음"];
+  const dateStr = (() => {
+    const d = new Date(survey.createdAt);
+    return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일`;
+  })();
+
   return (
-    <div className="px-4 pb-4 pt-2 bg-sky-50/60 border-t border-sky-100">
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-1 text-xs">
-        {CHECKLIST_LABELS.map((label, idx) => {
-          const ans = survey.answers[idx];
-          const isRisk =
-            idx === 6 ? ans === "아니오" : ans === "예";
-          return (
-            <div
-              key={idx}
-              className={`rounded p-1.5 text-center border ${isRisk
-                ? "bg-orange-50 border-orange-200 text-orange-700"
-                : ans !== null
-                  ? "bg-gray-50 border-gray-200 text-gray-500"
-                  : "bg-white border-dashed border-gray-200 text-gray-300"}`}
-            >
-              <div className="font-semibold">{idx + 1}. {label}</div>
-              <div className="mt-0.5 font-bold">{ans ?? "—"}</div>
+    <div className="border-t border-sky-100 bg-gradient-to-b from-sky-50/60 to-white px-4 py-5">
+      <div className="max-w-sm mx-auto space-y-4">
+
+        {/* ── 모바일 헤더 미니 재현 ── */}
+        <div className="bg-gradient-to-r from-sky-500 to-cyan-400 rounded-xl px-4 py-3 text-white text-center shadow-sm">
+          <div className="flex items-center justify-center gap-1.5 mb-0.5">
+            <Thermometer className="w-4 h-4 opacity-80" />
+            <span className="text-xs opacity-80">야외근로자용</span>
+          </div>
+          <p className="text-sm font-bold leading-tight">온열질환 특성 자가진단표</p>
+          <p className="text-[10px] opacity-70 mt-0.5">{dateStr} · 작업 전 실시</p>
+        </div>
+
+        {/* ── 완료 아이콘 ── */}
+        <div className="flex flex-col items-center gap-1">
+          <div className="w-14 h-14 rounded-full bg-green-50 border-4 border-green-200 flex items-center justify-center">
+            <CheckCircle2 className="w-7 h-7 text-green-500" />
+          </div>
+          <p className="text-base font-bold text-foreground">자가진단 등록 완료</p>
+        </div>
+
+        {/* ── 제출자 정보 ── */}
+        <div className="bg-white border border-sky-100 rounded-xl px-4 py-3 text-sm space-y-1.5 shadow-sm">
+          <div className="flex gap-2">
+            <span className="text-xs text-muted-foreground w-14 flex-shrink-0">이름</span>
+            <span className="font-semibold">{survey.name}</span>
+          </div>
+          <div className="flex gap-2">
+            <span className="text-xs text-muted-foreground w-14 flex-shrink-0">부서</span>
+            <span className="font-semibold">{survey.department}</span>
+          </div>
+          {survey.workArea && (
+            <div className="flex gap-2">
+              <span className="text-xs text-muted-foreground w-14 flex-shrink-0">국소명</span>
+              <span className="font-semibold">{survey.workArea}</span>
             </div>
-          );
-        })}
+          )}
+        </div>
+
+        {/* ── 취약도 결과 카드 ── */}
+        <div className={`rounded-xl border-2 px-4 py-4 ${rm.cardClass} shadow-sm`}>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-semibold text-gray-600">온열질환 취약도</p>
+            <span className={`text-lg font-black ${rm.textClass}`}>{rm.label}</span>
+          </div>
+          {/* 점수 바 */}
+          <div className="flex items-center gap-3 mb-2">
+            <div className="flex-1 h-3 bg-gradient-to-r from-green-300 via-yellow-300 via-orange-300 to-red-400 rounded-full relative">
+              <div
+                className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-white border-2 border-gray-600 rounded-full shadow"
+                style={{ left: `${Math.min((survey.score / 10) * 100, 95)}%`, transform: "translateX(-50%) translateY(-50%)" }}
+              />
+            </div>
+            <span className={`text-2xl font-black ${rm.textClass}`}>{survey.score}점</span>
+          </div>
+          {/* 점수 칸 */}
+          <div className="flex gap-0.5 mb-2">
+            {Array.from({ length: 10 }).map((_, i) => (
+              <div key={i} className={`flex-1 h-2 rounded-sm ${i < survey.score ? "bg-orange-400" : "bg-gray-200"}`} />
+            ))}
+          </div>
+          {(survey.riskLevel === "높음" || survey.riskLevel === "매우높음") && (
+            <div className="flex items-start gap-1.5 bg-white/60 rounded-lg p-2 mt-1">
+              <AlertTriangle className={`w-4 h-4 flex-shrink-0 mt-0.5 ${rm.textClass}`} />
+              <p className={`text-xs font-medium ${rm.textClass}`}>{rm.desc}</p>
+            </div>
+          )}
+          {(survey.riskLevel === "낮음" || survey.riskLevel === "보통") && (
+            <p className={`text-xs ${rm.textClass} mt-1`}>{rm.desc}</p>
+          )}
+        </div>
+
+        {/* ── 항목별 응답 ── */}
+        <div>
+          <p className="text-xs font-semibold text-muted-foreground mb-2">항목별 응답</p>
+          <div className="grid grid-cols-2 gap-1">
+            {CHECKLIST_FULL.map((item, idx) => {
+              const ans = survey.answers[idx];
+              const isRisk = item.reverse ? ans === "아니오" : ans === "예";
+              return (
+                <div
+                  key={idx}
+                  className={`rounded-lg px-2.5 py-2 border text-xs ${
+                    isRisk
+                      ? "bg-orange-50 border-orange-200"
+                      : "bg-white border-gray-100"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-1">
+                    <span className={`leading-snug flex-1 ${isRisk ? "text-orange-700 font-medium" : "text-gray-500"}`}>
+                      <span className="font-bold mr-0.5">{idx + 1}.</span> {item.label}
+                    </span>
+                    <span className={`font-black flex-shrink-0 text-sm ${
+                      isRisk ? "text-orange-500" : ans === null ? "text-gray-300" : "text-gray-400"
+                    }`}>
+                      {ans === "예" ? "예" : ans === "아니오" ? "아니오" : "—"}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -124,7 +214,7 @@ export default function HeatIllnessSurveyList() {
   }
 
   function exportCsv() {
-    const header = ["번호", "이름", "부서", "작업구역", "점수", "취약도", "등록일시", ...CHECKLIST_LABELS];
+    const header = ["번호", "이름", "부서", "국소명", "점수", "취약도", "등록일시", ...CHECKLIST_FULL.map(c => c.label)];
     const rows = filtered.map((s) => [
       s.id, s.name, s.department, s.workArea ?? "",
       s.score, s.riskLevel, formatDate(s.createdAt),
@@ -211,7 +301,7 @@ export default function HeatIllnessSurveyList() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             className="pl-9 h-9 text-sm"
-            placeholder="이름·부서·작업구역 검색"
+            placeholder="이름·부서·국소명 검색"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -246,7 +336,7 @@ export default function HeatIllnessSurveyList() {
 
           <div className="divide-y divide-gray-100">
             {filtered.map((s) => {
-              const rb = RISK_BADGE[s.riskLevel] ?? RISK_BADGE["낮음"];
+              const rb = RISK_META[s.riskLevel] ?? RISK_META["낮음"];
               const isExpanded = expandedId === s.id;
               return (
                 <div key={s.id}>
@@ -263,7 +353,7 @@ export default function HeatIllnessSurveyList() {
                     </div>
                     <span className="w-12 text-center font-bold text-sm text-foreground">{s.score}점</span>
                     <span className="w-16 hidden sm:flex justify-center">
-                      <Badge variant="outline" className={`text-xs px-1.5 ${rb.class}`}>{rb.label}</Badge>
+                      <Badge variant="outline" className={`text-xs px-1.5 ${rb.badgeClass}`}>{rb.label}</Badge>
                     </span>
                     <span className="w-28 hidden md:block text-xs text-muted-foreground">{formatDate(s.createdAt)}</span>
                     <div className="w-16 flex items-center justify-center gap-1">
@@ -281,7 +371,7 @@ export default function HeatIllnessSurveyList() {
                       </button>
                     </div>
                   </div>
-                  {isExpanded && <SurveyDetail survey={s} />}
+                  {isExpanded && <SurveyResultCard survey={s} />}
                 </div>
               );
             })}

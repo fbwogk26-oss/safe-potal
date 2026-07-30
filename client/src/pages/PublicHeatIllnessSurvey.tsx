@@ -213,7 +213,7 @@ export default function PublicHeatIllnessSurvey() {
                 </select>
               </div>
               <div>
-                <Label className="text-sm font-semibold mb-1 block">작업국소 <span className="text-xs text-muted-foreground font-normal">(선택)</span></Label>
+                <Label className="text-sm font-semibold mb-1 block">국소명 <span className="text-xs text-muted-foreground font-normal">(선택)</span></Label>
                 <Input
                   value={workArea}
                   onChange={(e) => setWorkArea(e.target.value)}
@@ -355,7 +355,7 @@ export default function PublicHeatIllnessSurvey() {
               </div>
               {workArea && (
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground w-16 flex-shrink-0">작업국소</span>
+                  <span className="text-xs text-muted-foreground w-16 flex-shrink-0">국소명</span>
                   <span className="font-semibold text-foreground">{workArea}</span>
                 </div>
               )}
