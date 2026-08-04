@@ -739,24 +739,23 @@ export async function runHeatwaveDailyEmail(
   }
 }
 
-// ── 자동 발송 스케줄 (매일 08:30 KST) ────────────────────────────────────
-cron.schedule(
-  '30 8 * * *',
-  () => {
-    console.log('[HeatwaveEmail] 🌅 08:30 자동 발송 시작');
-    runHeatwaveDailyEmail().catch(console.error);
-  },
-  { timezone: 'Asia/Seoul' }
-);
+// ── 자동 발송 비활성화 (2026-08-04 요청) ────────────────────────────────
+// cron.schedule(
+//   '30 8 * * *',
+//   () => {
+//     console.log('[HeatwaveEmail] 🌅 08:30 자동 발송 시작');
+//     runHeatwaveDailyEmail().catch(console.error);
+//   },
+//   { timezone: 'Asia/Seoul' }
+// );
+//
+// cron.schedule(
+//   '30 12 * * *',
+//   () => {
+//     console.log('[HeatwaveEmail] ☀️ 12:30 자동 발송 시작');
+//     runHeatwaveDailyEmail().catch(console.error);
+//   },
+//   { timezone: 'Asia/Seoul' }
+// );
 
-// ── 자동 발송 스케줄 (매일 12:30 KST) ────────────────────────────────────
-cron.schedule(
-  '30 12 * * *',
-  () => {
-    console.log('[HeatwaveEmail] ☀️ 12:30 자동 발송 시작');
-    runHeatwaveDailyEmail().catch(console.error);
-  },
-  { timezone: 'Asia/Seoul' }
-);
-
-console.log('[HeatwaveEmail] 폭염 일일 메일 스케줄러 시작 (매일 08:30 · 12:30 KST) → jaeha.ryu@ktmos.co.kr');
+console.log('[HeatwaveEmail] 폭염 일일 메일 자동 발송 비활성화 상태');

@@ -16047,8 +16047,8 @@ async function setupCardNewsScheduler() {
   }
 }
 
-// 서버 시작 시 카드뉴스 스케줄러 초기화
-setTimeout(() => setupCardNewsScheduler(), 5000);
+// 카드뉴스 자동 발송 비활성화 (2026-08-04 요청)
+// setTimeout(() => setupCardNewsScheduler(), 5000);
 
 async function seedDatabase() {
   const teams = await storage.getTeams(2025);
