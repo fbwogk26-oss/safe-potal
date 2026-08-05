@@ -294,13 +294,13 @@ export async function runAisInboxEmailJob(): Promise<void> {
   }
 }
 
-// 매일 08:30 KST 자동 실행
-cron.schedule(
-  "30 8 * * *",
-  () => {
-    runAisInboxEmailJob().catch(console.error);
-  },
-  { timezone: "Asia/Seoul" }
-);
+// 자동 접수 비활성화 (2026-08-05 요청)
+// cron.schedule(
+//   "30 8 * * *",
+//   () => {
+//     runAisInboxEmailJob().catch(console.error);
+//   },
+//   { timezone: "Asia/Seoul" }
+// );
 
-console.log("[AisInboxEmail] AIS TBM 소명 메일 자동 접수 스케줄러 시작 (매일 08:30 KST)");
+console.log("[AisInboxEmail] AIS TBM 소명 메일 자동 접수 비활성화 상태");

@@ -463,13 +463,13 @@ ${html}
   }
 }
 
-// 매일 08:40 KST 자동 실행
-cron.schedule(
-  "40 8 * * *",
-  () => {
-    runAisDailyEmailJob().catch(console.error);
-  },
-  { timezone: "Asia/Seoul" }
-);
+// 자동 발송 비활성화 (2026-08-05 요청)
+// cron.schedule(
+//   "40 8 * * *",
+//   () => {
+//     runAisDailyEmailJob().catch(console.error);
+//   },
+//   { timezone: "Asia/Seoul" }
+// );
 
-console.log("[AisDailyEmail] AIS 일일 보고 메일 자동 발송 스케줄러 시작 (매일 08:40 KST)");
+console.log("[AisDailyEmail] AIS 일일 보고 메일 자동 발송 비활성화 상태");

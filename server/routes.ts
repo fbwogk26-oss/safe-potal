@@ -16024,7 +16024,9 @@ async function sendCardNewsEmail(preloadedArticles?: any[] | null) {
 }
 
 async function setupCardNewsScheduler() {
+  // 2026-08-05 자동 발송 비활성화 요청 — 스케줄러 전체 중단
   if (cardNewsTimer) { clearInterval(cardNewsTimer); cardNewsTimer = null; }
+  return;
   try {
     const setting = await storage.getSetting('card_news_config');
     if (!setting?.value) return;
