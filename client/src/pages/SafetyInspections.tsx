@@ -1766,6 +1766,7 @@ export default function SafetyInspections() {
 
   const [activeTab, setActiveTab] = useState<"자체" | "진행율">("자체");
   const [chartView, setChartView] = useState<"팀별" | "월별" | "주별">("팀별");
+  const [monthChartMode, setMonthChartMode] = useState<"합계" | "팀별">("합계");
 
   // ── 점검 진행율 탭: 업로드 파일 데이터 ─────────────────────────────────────
   const [uploadedFileName, setUploadedFileName] = useState<string>("");
@@ -1809,13 +1810,18 @@ export default function SafetyInspections() {
     if (!uploadedInspRows.length) return null;
     const byTeam: Record<string, number> = {};
     const byMonth: Record<string, number> = {};
+    const byMonthByTeam: Record<string, Record<string, number>> = {};
     const byWeek: Record<string, number> = {};
     const byResult: Record<string, number> = {};
     for (const r of uploadedInspRows) {
       const team = normalizeUploadTeam(r.team);
       byTeam[team] = (byTeam[team] || 0) + 1;
       const month = r.date.slice(0, 7);
-      if (month) byMonth[month] = (byMonth[month] || 0) + 1;
+      if (month) {
+        byMonth[month] = (byMonth[month] || 0) + 1;
+        if (!byMonthByTeam[month]) byMonthByTeam[month] = {};
+        byMonthByTeam[month][team] = (byMonthByTeam[month][team] || 0) + 1;
+      }
       const wk = getISOWeekKey(r.date);
       if (wk) byWeek[wk] = (byWeek[wk] || 0) + 1;
       const res = r.result || "미기재";
@@ -1830,7 +1836,7 @@ export default function SafetyInspections() {
     // 주간 목표: 총 월목표 합계 / 4.33
     const totalMonthly = Object.values(deptMonthlyTargets).reduce((s, v) => s + v, 0);
     const weeklyTargetTotal = totalMonthly > 0 ? Math.round(totalMonthly / 4.33) : 0;
-    return { total: uploadedInspRows.length, byTeam, byMonth, byWeek, byResult, sortedMonths, sortedWeeks, sortedTeams, maxTeam, maxMonth, maxWeek, weeklyTargetTotal };
+    return { total: uploadedInspRows.length, byTeam, byMonth, byMonthByTeam, byWeek, byResult, sortedMonths, sortedWeeks, sortedTeams, maxTeam, maxMonth, maxWeek, weeklyTargetTotal };
   }, [uploadedInspRows, deptMonthlyTargets]);
 
   const [isSendingEmail, setIsSendingEmail] = useState(false);
@@ -2333,20 +2339,71 @@ export default function SafetyInspections() {
 
                 {/* 월별 */}
                 {chartView === "월별" && (
-                  <div className="divide-y divide-border">
-                    {uploadedInspStats.sortedMonths.map(([month, cnt]) => (
-                      <div key={month} className="flex items-center gap-2 px-3 py-1.5">
-                        <span className="text-xs font-medium text-foreground w-16 shrink-0">{month.slice(5)}월</span>
-                        <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                          <div className="h-full bg-blue-500 rounded-full transition-all"
-                            style={{ width: `${(cnt / uploadedInspStats.maxMonth) * 100}%` }} />
-                        </div>
-                        <span className="text-xs font-bold text-blue-600 w-8 text-right shrink-0">{cnt}</span>
-                        <span className="text-[10px] text-muted-foreground w-10 text-right shrink-0">
-                          {Math.round(cnt / uploadedInspStats.total * 100)}%
-                        </span>
+                  <div>
+                    {/* 합계/팀별 토글 */}
+                    <div className="flex border-b border-border">
+                      {(["합계", "팀별"] as const).map(m => (
+                        <button key={m} onClick={() => setMonthChartMode(m)}
+                          className={`flex-1 py-1.5 text-[11px] font-semibold transition-colors ${
+                            monthChartMode === m
+                              ? "bg-white dark:bg-slate-800 text-blue-600 border-b-2 border-blue-500"
+                              : "text-muted-foreground hover:text-foreground"
+                          }`}>
+                          {m}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* 합계 뷰 */}
+                    {monthChartMode === "합계" && (
+                      <div className="divide-y divide-border">
+                        {uploadedInspStats.sortedMonths.map(([month, cnt]) => (
+                          <div key={month} className="flex items-center gap-2 px-3 py-1.5">
+                            <span className="text-xs font-medium text-foreground w-16 shrink-0">{month.slice(5)}월</span>
+                            <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                              <div className="h-full bg-blue-500 rounded-full transition-all"
+                                style={{ width: `${(cnt / uploadedInspStats.maxMonth) * 100}%` }} />
+                            </div>
+                            <span className="text-xs font-bold text-blue-600 w-8 text-right shrink-0">{cnt}</span>
+                            <span className="text-[10px] text-muted-foreground w-10 text-right shrink-0">
+                              {Math.round(cnt / uploadedInspStats.total * 100)}%
+                            </span>
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    )}
+
+                    {/* 팀별 뷰 — 월별로 팀 내역 */}
+                    {monthChartMode === "팀별" && (
+                      <div className="divide-y divide-border">
+                        {uploadedInspStats.sortedMonths.map(([month, total]) => {
+                          const teamMap = uploadedInspStats.byMonthByTeam[month] || {};
+                          const sortedEntries = Object.entries(teamMap)
+                            .sort((a, b) => teamOrderKey(a[0]) - teamOrderKey(b[0]));
+                          const maxInMonth = Math.max(...Object.values(teamMap), 1);
+                          return (
+                            <div key={month} className="px-3 py-2 space-y-1">
+                              {/* 월 헤더 */}
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-xs font-bold text-foreground">{month.slice(5)}월</span>
+                                <span className="text-[10px] text-muted-foreground">합계 {total}건</span>
+                              </div>
+                              {/* 팀별 미니 바 */}
+                              {sortedEntries.map(([team, cnt]) => (
+                                <div key={team} className="flex items-center gap-2">
+                                  <span className="text-[11px] text-muted-foreground w-20 shrink-0 truncate">{team}</span>
+                                  <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                                    <div className="h-full bg-blue-400 rounded-full transition-all"
+                                      style={{ width: `${(cnt / maxInMonth) * 100}%` }} />
+                                  </div>
+                                  <span className="text-[11px] font-semibold text-blue-600 w-6 text-right shrink-0">{cnt}</span>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 )}
 
