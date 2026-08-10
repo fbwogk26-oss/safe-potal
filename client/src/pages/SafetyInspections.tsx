@@ -2417,55 +2417,78 @@ export default function SafetyInspections() {
                       );
                     })()}
 
-                    {/* 팀별 뷰 — 꺾은선 그래프 (개선) */}
+                    {/* 팀별 뷰 — 히트맵 테이블 */}
                     {monthChartMode === "팀별" && (() => {
-                      const TEAM_COLORS = ["#4f46e5","#0284c7","#16a34a","#d97706","#dc2626","#7c3aed","#db2777","#475569"];
-                      const TEAM_DASHES = ["","","","","","6 3","6 3","3 2"];
-                      const activeTeams = TEAM_ORDER.filter(t => Object.values(uploadedInspStats.byMonthByTeam).some(m => m[t]));
-                      const lineData = uploadedInspStats.sortedMonths.map(([month]) => {
-                        const entry: Record<string, string | number> = { month: `${parseInt(month.slice(5))}월` };
-                        activeTeams.forEach(t => { entry[t] = uploadedInspStats.byMonthByTeam[month]?.[t] ?? 0; });
-                        return entry;
-                      });
+                      const activeTeams = TEAM_ORDER.filter(t =>
+                        Object.values(uploadedInspStats.byMonthByTeam).some(m => m[t])
+                      );
+                      const allVals = uploadedInspStats.sortedMonths.flatMap(([month]) =>
+                        activeTeams.map(t => uploadedInspStats.byMonthByTeam[month]?.[t] ?? 0)
+                      );
+                      const globalMax = Math.max(...allVals, 1);
+                      const abbr = (name: string) => name.replace("운용팀","").replace("현장경영팀","현장경영");
+                      const cellStyle = (v: number): { bg: string; fg: string } => {
+                        const r = v / globalMax;
+                        if (r === 0) return { bg: "transparent", fg: "#94a3b8" };
+                        if (r < 0.25) return { bg: `rgba(199,210,254,${0.4 + r * 2})`, fg: "#4338ca" };
+                        if (r < 0.55) return { bg: `rgba(99,102,241,${0.45 + r * 0.7})`, fg: "#fff" };
+                        return { bg: `rgba(55,48,163,${0.6 + r * 0.4})`, fg: "#fff" };
+                      };
                       return (
-                        <div className="px-3 pt-4 pb-2">
-                          <ResponsiveContainer width="100%" height={280}>
-                            <LineChart data={lineData} margin={{ top: 8, right: 16, left: -10, bottom: 0 }}>
-                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" strokeWidth={1} />
-                              <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
-                              <YAxis tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} allowDecimals={false} width={30} />
-                              <Tooltip
-                                contentStyle={{ fontSize: 12, borderRadius: 10, border: "1px solid #e2e8f0", boxShadow: "0 4px 16px rgba(0,0,0,0.08)", padding: "8px 12px" }}
-                                itemStyle={{ padding: "1px 0", fontSize: 11 }}
-                                labelStyle={{ fontWeight: 700, color: "#1e293b", marginBottom: 4, fontSize: 12 }}
-                                formatter={(val: number, name: string) => [`${val}건`, name]}
-                              />
-                              {activeTeams.map((team, i) => (
-                                <Line key={team} type="monotone" dataKey={team}
-                                  stroke={TEAM_COLORS[i % TEAM_COLORS.length]}
-                                  strokeWidth={2.5}
-                                  strokeDasharray={TEAM_DASHES[i] || ""}
-                                  dot={{ r: 4, fill: "#fff", strokeWidth: 2.5, stroke: TEAM_COLORS[i % TEAM_COLORS.length] }}
-                                  activeDot={{ r: 6, strokeWidth: 0, fill: TEAM_COLORS[i % TEAM_COLORS.length] }} />
-                              ))}
-                            </LineChart>
-                          </ResponsiveContainer>
-                          {/* 커스텀 범례 — 2열 그리드 */}
-                          <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 px-1 mt-3">
-                            {activeTeams.map((team, i) => (
-                              <div key={team} className="flex items-center gap-2">
-                                <svg width="24" height="10" className="shrink-0">
-                                  <line x1="0" y1="5" x2="24" y2="5"
-                                    stroke={TEAM_COLORS[i % TEAM_COLORS.length]}
-                                    strokeWidth="2.5"
-                                    strokeDasharray={TEAM_DASHES[i] || ""}
-                                  />
-                                  <circle cx="12" cy="5" r="3.5" fill="#fff"
-                                    stroke={TEAM_COLORS[i % TEAM_COLORS.length]} strokeWidth="2.5" />
-                                </svg>
-                                <span className="text-[11px] text-slate-600 dark:text-slate-400 truncate">{team}</span>
-                              </div>
+                        <div>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-center border-collapse" style={{ minWidth: activeTeams.length * 54 + 52 }}>
+                              <thead>
+                                <tr className="border-b-2 border-indigo-100 dark:border-indigo-900/40">
+                                  <th className="py-2.5 px-3 text-left text-[10px] font-bold text-muted-foreground sticky left-0 bg-white dark:bg-slate-900 z-10 w-10">월</th>
+                                  {activeTeams.map(t => (
+                                    <th key={t} className="py-2.5 px-1 text-[10px] font-bold text-muted-foreground whitespace-nowrap">{abbr(t)}</th>
+                                  ))}
+                                  <th className="py-2.5 px-3 text-[10px] font-bold text-indigo-500 whitespace-nowrap">합계</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {uploadedInspStats.sortedMonths.map(([month, rowTotal]) => (
+                                  <tr key={month} className="border-b border-border/40 hover:bg-indigo-50/30 dark:hover:bg-indigo-950/10 transition-colors">
+                                    <td className="py-1 px-3 text-left text-[11px] font-bold text-foreground sticky left-0 bg-white dark:bg-slate-900 z-10">
+                                      {parseInt(month.slice(5))}월
+                                    </td>
+                                    {activeTeams.map(t => {
+                                      const v = uploadedInspStats.byMonthByTeam[month]?.[t] ?? 0;
+                                      const { bg, fg } = cellStyle(v);
+                                      return (
+                                        <td key={t} className="py-1 px-0.5">
+                                          <div className="mx-auto rounded-lg flex items-center justify-center font-bold transition-all duration-200"
+                                            style={{ background: bg, color: fg, width: 38, height: 30, fontSize: 12 }}>
+                                            {v > 0 ? v : <span style={{ color: "#e2e8f0", fontSize: 8 }}>·</span>}
+                                          </div>
+                                        </td>
+                                      );
+                                    })}
+                                    <td className="py-1 px-3 text-[12px] font-black text-indigo-600">{rowTotal}</td>
+                                  </tr>
+                                ))}
+                                <tr className="border-t-2 border-indigo-200 dark:border-indigo-800">
+                                  <td className="py-2 px-3 text-left text-[10px] font-bold text-muted-foreground sticky left-0 bg-indigo-50 dark:bg-indigo-950/20 z-10">합계</td>
+                                  {activeTeams.map(t => {
+                                    const tot = uploadedInspStats.sortedMonths.reduce((s,[m]) => s + (uploadedInspStats.byMonthByTeam[m]?.[t] ?? 0), 0);
+                                    return <td key={t} className="py-2 px-0.5 text-[12px] font-black text-indigo-600 bg-indigo-50 dark:bg-indigo-950/20">{tot || ""}</td>;
+                                  })}
+                                  <td className="py-2 px-3 text-[12px] font-black text-indigo-700 bg-indigo-50 dark:bg-indigo-950/20">{uploadedInspStats.total}</td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </div>
+                          <div className="flex items-center justify-end gap-1 px-3 py-2">
+                            <span className="text-[10px] text-muted-foreground mr-0.5">적음</span>
+                            {[0.15,0.35,0.55,0.75,0.95].map((r, i) => (
+                              <div key={i} className="w-4 h-4 rounded" style={{
+                                background: r < 0.25 ? `rgba(199,210,254,${0.4+r*2})`
+                                  : r < 0.55 ? `rgba(99,102,241,${0.45+r*0.7})`
+                                  : `rgba(55,48,163,${0.6+r*0.4})`
+                              }} />
                             ))}
+                            <span className="text-[10px] text-muted-foreground ml-0.5">많음</span>
                           </div>
                         </div>
                       );
