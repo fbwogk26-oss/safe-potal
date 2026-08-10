@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ClipboardCheck, ClipboardList, Plus, Trash2, ImagePlus, X, Calendar, MapPin, User, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Download, Check, AlertCircle, BarChart3, Settings, FileText, Loader2, Pencil, CheckSquare, Upload, Eye, Mail, ImageOff } from "lucide-react";
+import { ClipboardCheck, ClipboardList, Plus, Trash2, ImagePlus, X, Calendar, MapPin, User, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Download, Check, AlertCircle, BarChart3, Settings, FileText, Loader2, Pencil, CheckSquare, Upload, Eye, Mail, ImageOff, TrendingUp } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -596,7 +596,7 @@ export default function SafetyInspections() {
 
   const handleEdit = (inspection: any) => {
     const isOtherType = (OTHER_INSPECTION_TYPES as readonly string[]).includes(inspection.inspectionType ?? "");
-    setActiveTab(isOtherType ? "기타" : "자체");
+    setActiveTab("자체");
     const titleParts = inspection.title?.split(" - ") || [];
     const dept = titleParts[0] || "";
     const work = titleParts.slice(1).join(" - ") || "";
@@ -1694,7 +1694,7 @@ export default function SafetyInspections() {
 
   const [showInspDashboard, setShowInspDashboard] = useState(true);
 
-  const [activeTab, setActiveTab] = useState<"자체">("자체");
+  const [activeTab, setActiveTab] = useState<"자체" | "진행율">("자체");
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [isSendingBulkEmail, setIsSendingBulkEmail] = useState(false);
   const pendingSendEmail = useRef(false);
@@ -1852,14 +1852,23 @@ export default function SafetyInspections() {
         >
           자체 안전점검
         </button>
+        <button
+          onClick={() => setActiveTab("진행율")}
+          className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors flex items-center gap-1.5 ${activeTab === "진행율" ? "border-indigo-500 text-indigo-600 dark:text-indigo-400" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+          data-testid="tab-progress"
+        >
+          <TrendingUp className="w-3.5 h-3.5" />
+          점검 진행율
+        </button>
       </div>
 
       {inspectionStats && (
         <Card>
           <CardHeader
             className="bg-gradient-to-r from-slate-50 to-blue-50 dark:from-slate-900/40 dark:to-blue-900/20 border-b p-3 sm:p-4 cursor-pointer"
-            onClick={() => setShowInspDashboard(!showInspDashboard)}
+            onClick={() => { if (activeTab !== "진행율") setShowInspDashboard(!showInspDashboard); }}
             data-testid="button-toggle-dashboard"
+            style={activeTab === "진행율" ? { cursor: "default" } : undefined}
           >
             <CardTitle className="text-sm sm:text-base flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
@@ -1882,12 +1891,12 @@ export default function SafetyInspections() {
                     <Settings className="w-3.5 h-3.5" />
                   </Button>
                 )}
-                {showInspDashboard ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                {activeTab !== "진행율" && (showInspDashboard ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />)}
               </div>
             </CardTitle>
           </CardHeader>
           <AnimatePresence>
-            {showInspDashboard && (
+            {(activeTab === "진행율" || showInspDashboard) && (
               <motion.div
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: "auto", opacity: 1 }}
@@ -2157,6 +2166,7 @@ export default function SafetyInspections() {
         </Card>
       )}
 
+      {activeTab === "자체" && (<>
       <AnimatePresence>
         {showForm && (
           <motion.div
@@ -2629,6 +2639,7 @@ export default function SafetyInspections() {
           </Card>
         )}
       </div>
+      </>)}
 
       <Dialog open={showTargetDialog} onOpenChange={setShowTargetDialog}>
         <DialogContent className="sm:max-w-sm">
