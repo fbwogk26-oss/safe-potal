@@ -2299,43 +2299,51 @@ export default function SafetyInspections() {
                 </div>
 
                 {/* 팀별 */}
-                {chartView === "팀별" && (
-                  <div className="divide-y divide-border">
-                    <div className="px-3 py-1.5 bg-slate-50/50 dark:bg-slate-900/20 flex justify-end">
-                      <span className="text-[10px] text-muted-foreground">진행 / 연간목표</span>
+                {chartView === "팀별" && (() => {
+                  const TEAM_COLORS: Record<string, string> = {
+                    "동대구운용팀": "#6366f1",
+                    "포항운용팀":   "#8b5cf6",
+                    "안동운용팀":   "#ec4899",
+                    "서대구운용팀": "#f97316",
+                    "남대구운용팀": "#eab308",
+                    "구미운용팀":   "#22c55e",
+                    "문경운용팀":   "#14b8a6",
+                    "현장경영팀":   "#64748b",
+                  };
+                  const activeMonths = uploadedInspStats.sortedMonths.map(([m]) => m);
+                  const chartData = uploadedInspStats.sortedTeams.map(([team]) => {
+                    const row: Record<string, string | number> = { team: team.replace("운용팀","").replace("현장경영팀","현장경영") };
+                    activeMonths.forEach(m => { row[m] = uploadedInspStats.byMonthByTeam[m]?.[team] ?? 0; });
+                    return row;
+                  });
+                  const chartHeight = Math.max(240, chartData.length * 52);
+                  const monthLabel = (m: string) => `${parseInt(m.slice(5))}월`;
+                  return (
+                    <div className="px-1 pt-3 pb-2">
+                      <ResponsiveContainer width="100%" height={chartHeight}>
+                        <BarChart data={chartData} layout="vertical" margin={{ top: 4, right: 48, left: 52, bottom: 4 }} barCategoryGap="22%">
+                          <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="rgba(148,163,184,0.2)" />
+                          <XAxis type="number" tick={{ fontSize: 11, fill: "#94a3b8" }} tickLine={false} axisLine={false} allowDecimals={false} />
+                          <YAxis type="category" dataKey="team" tick={{ fontSize: 12, fontWeight: 700, fill: "#475569" }} tickLine={false} axisLine={false} width={52} />
+                          <Tooltip
+                            cursor={{ fill: "rgba(99,102,241,0.06)" }}
+                            contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e2e8f0", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}
+                            formatter={(value: number, name: string) => [value + "건", monthLabel(name)]}
+                          />
+                          <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} formatter={(v) => monthLabel(v)} />
+                          {activeMonths.map((m, i) => (
+                            <Bar key={m} dataKey={m} stackId="a"
+                              fill={`hsl(${220 + i * (120 / Math.max(activeMonths.length - 1, 1))}, 70%, ${55 - i * 3}%)`}
+                              radius={i === activeMonths.length - 1 ? [0, 4, 4, 0] : [0, 0, 0, 0]}>
+                              <LabelList dataKey={m} position="inside" style={{ fontSize: 10, fill: "#fff", fontWeight: 700 }}
+                                formatter={(v: number) => v > 0 ? v : ""} />
+                            </Bar>
+                          ))}
+                        </BarChart>
+                      </ResponsiveContainer>
                     </div>
-                    {uploadedInspStats.sortedTeams.map(([team, cnt]) => {
-                      const annualTarget = (deptMonthlyTargets[team] || 0) * 12;
-                      const pct = annualTarget > 0 ? Math.min(100, Math.round(cnt / annualTarget * 100)) : null;
-                      const barWidth = annualTarget > 0
-                        ? Math.min(100, (cnt / annualTarget) * 100)
-                        : (cnt / uploadedInspStats.maxTeam) * 100;
-                      const barColor = pct === null ? "bg-indigo-400"
-                        : pct >= 100 ? "bg-emerald-500"
-                        : pct >= 70 ? "bg-indigo-500"
-                        : "bg-orange-400";
-                      return (
-                        <div key={team} className="flex items-center gap-2 px-3 py-1.5">
-                          <span className="text-xs font-medium text-foreground w-24 shrink-0 truncate">{team}</span>
-                          <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                            <div className={`h-full ${barColor} rounded-full transition-all`} style={{ width: `${barWidth}%` }} />
-                          </div>
-                          <span className="text-xs font-bold text-indigo-600 w-16 text-right shrink-0">
-                            {cnt}{annualTarget > 0 ? `/${annualTarget}` : ""}
-                          </span>
-                          <span className={`text-[10px] font-semibold w-10 text-right shrink-0 ${
-                            pct === null ? "text-muted-foreground"
-                            : pct >= 100 ? "text-emerald-600"
-                            : pct >= 70 ? "text-indigo-600"
-                            : "text-orange-500"
-                          }`}>
-                            {pct !== null ? `${pct}%` : "-"}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+                  );
+                })()}
 
                 {/* 월별 */}
                 {chartView === "월별" && (
@@ -2522,10 +2530,10 @@ export default function SafetyInspections() {
                       const jan4 = new Date(parseInt(wy), 0, 4);
                       const mon1 = new Date(jan4); mon1.setDate(jan4.getDate() - ((jan4.getDay() + 6) % 7));
                       const monDate = new Date(mon1); monDate.setDate(mon1.getDate() + (weekNum - 1) * 7);
-                      const sunDate = new Date(monDate); sunDate.setDate(monDate.getDate() + 6);
+                      const friDate = new Date(monDate); friDate.setDate(monDate.getDate() + 4);
                       const fmt = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}`;
                       const weekLabel = weekNum ? `${weekNum}주차` : wk;
-                      const weekRange = weekNum ? `${fmt(monDate)}~${fmt(sunDate)}` : "";
+                      const weekRange = weekNum ? `${fmt(monDate)}~${fmt(friDate)}` : "";
                       return (
                         <div key={wk} className="flex items-center gap-2 px-3 py-1.5">
                           <div className="w-24 shrink-0">
