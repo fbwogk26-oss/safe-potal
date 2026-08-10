@@ -2360,52 +2360,67 @@ export default function SafetyInspections() {
                       const barData = uploadedInspStats.sortedMonths.map(([month, cnt]) => ({
                         month: `${parseInt(month.slice(5))}월`,
                         실적: cnt,
-                        target: monthlyTargetTotal,
                       }));
-                      const yMax = Math.max(uploadedInspStats.maxMonth, monthlyTargetTotal) * 1.15;
+                      const yMax = Math.max(uploadedInspStats.maxMonth, monthlyTargetTotal) * 1.2;
                       return (
-                        <div className="px-2 pt-3 pb-1">
-                          <ResponsiveContainer width="100%" height={220}>
-                            <BarChart data={barData} margin={{ top: 10, right: 10, left: -18, bottom: 0 }} barCategoryGap="30%">
-                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                              <XAxis dataKey="month" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                              <YAxis domain={[0, yMax]} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                        <div className="px-3 pt-4 pb-2">
+                          <ResponsiveContainer width="100%" height={260}>
+                            <BarChart data={barData} margin={{ top: 20, right: 12, left: -10, bottom: 0 }} barCategoryGap="35%">
+                              <defs>
+                                <linearGradient id="barGradGreen" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="0%" stopColor="#10b981" stopOpacity={1} />
+                                  <stop offset="100%" stopColor="#34d399" stopOpacity={0.7} />
+                                </linearGradient>
+                                <linearGradient id="barGradIndigo" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="0%" stopColor="#6366f1" stopOpacity={1} />
+                                  <stop offset="100%" stopColor="#818cf8" stopOpacity={0.7} />
+                                </linearGradient>
+                                <linearGradient id="barGradAmber" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="0%" stopColor="#f59e0b" stopOpacity={1} />
+                                  <stop offset="100%" stopColor="#fbbf24" stopOpacity={0.7} />
+                                </linearGradient>
+                              </defs>
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" strokeWidth={1} />
+                              <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
+                              <YAxis domain={[0, yMax]} tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} allowDecimals={false} width={30} />
                               <Tooltip
-                                formatter={(val: number, name: string) => [`${val}건`, name === "실적" ? "실적" : "목표"]}
-                                contentStyle={{ fontSize: 11, borderRadius: 8 }}
+                                cursor={{ fill: "rgba(99,102,241,0.06)", radius: 4 }}
+                                contentStyle={{ fontSize: 12, borderRadius: 10, border: "1px solid #e2e8f0", boxShadow: "0 4px 16px rgba(0,0,0,0.08)", padding: "8px 12px" }}
+                                formatter={(val: number) => [`${val}건`, "실적"]}
+                                labelStyle={{ fontWeight: 700, color: "#1e293b", marginBottom: 2 }}
                               />
                               {monthlyTargetTotal > 0 && (
-                                <ReferenceLine y={monthlyTargetTotal} stroke="#94a3b8" strokeDasharray="5 3" strokeWidth={1.5}
-                                  label={{ value: `목표 ${monthlyTargetTotal}`, position: "insideTopRight", fontSize: 10, fill: "#64748b" }} />
+                                <ReferenceLine y={monthlyTargetTotal} stroke="#64748b" strokeDasharray="6 3" strokeWidth={1.5}
+                                  label={{ value: `목표 ${monthlyTargetTotal}건`, position: "insideTopRight", fontSize: 10, fill: "#64748b", fontWeight: 600 }} />
                               )}
-                              <Bar dataKey="실적" radius={[4, 4, 0, 0]} maxBarSize={40}>
+                              <Bar dataKey="실적" radius={[6, 6, 0, 0]} maxBarSize={44}>
                                 {barData.map((entry, i) => {
                                   const pct = monthlyTargetTotal > 0 ? entry.실적 / monthlyTargetTotal : null;
-                                  const color = pct === null ? "#6366f1"
-                                    : pct >= 1 ? "#10b981"
-                                    : pct >= 0.7 ? "#6366f1"
-                                    : "#f59e0b";
-                                  return <Cell key={i} fill={color} />;
+                                  const grad = pct === null ? "url(#barGradIndigo)"
+                                    : pct >= 1 ? "url(#barGradGreen)"
+                                    : pct >= 0.7 ? "url(#barGradIndigo)"
+                                    : "url(#barGradAmber)";
+                                  return <Cell key={i} fill={grad} />;
                                 })}
-                                <LabelList dataKey="실적" position="top" style={{ fontSize: 9, fill: "#475569" }} />
+                                <LabelList dataKey="실적" position="top" style={{ fontSize: 10, fill: "#475569", fontWeight: 600 }} />
                               </Bar>
                             </BarChart>
                           </ResponsiveContainer>
                           {monthlyTargetTotal > 0 && (
-                            <div className="flex justify-center gap-4 mt-1 text-[10px] text-muted-foreground">
-                              <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm bg-emerald-500" />목표 달성</span>
-                              <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm bg-indigo-500" />70% 이상</span>
-                              <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm bg-amber-400" />70% 미만</span>
+                            <div className="flex justify-center gap-5 mt-2 text-[10px] text-muted-foreground">
+                              <span className="flex items-center gap-1.5"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-emerald-500" />목표 달성</span>
+                              <span className="flex items-center gap-1.5"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-indigo-500" />70% 이상</span>
+                              <span className="flex items-center gap-1.5"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-amber-400" />70% 미만</span>
                             </div>
                           )}
                         </div>
                       );
                     })()}
 
-                    {/* 팀별 뷰 — 꺾은선 그래프 */}
+                    {/* 팀별 뷰 — 꺾은선 그래프 (개선) */}
                     {monthChartMode === "팀별" && (() => {
-                      const TEAM_COLORS = ["#6366f1","#0ea5e9","#10b981","#f59e0b","#ef4444","#8b5cf6","#ec4899","#6b7280"];
-                      // 데이터에 실제 등장한 팀만
+                      const TEAM_COLORS = ["#4f46e5","#0284c7","#16a34a","#d97706","#dc2626","#7c3aed","#db2777","#475569"];
+                      const TEAM_DASHES = ["","","","","","6 3","6 3","3 2"];
                       const activeTeams = TEAM_ORDER.filter(t => Object.values(uploadedInspStats.byMonthByTeam).some(m => m[t]));
                       const lineData = uploadedInspStats.sortedMonths.map(([month]) => {
                         const entry: Record<string, string | number> = { month: `${parseInt(month.slice(5))}월` };
@@ -2413,23 +2428,45 @@ export default function SafetyInspections() {
                         return entry;
                       });
                       return (
-                        <div className="px-2 pt-3 pb-1">
-                          <ResponsiveContainer width="100%" height={220}>
-                            <LineChart data={lineData} margin={{ top: 10, right: 10, left: -18, bottom: 0 }}>
-                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                              <XAxis dataKey="month" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                              <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} allowDecimals={false} />
-                              <Tooltip contentStyle={{ fontSize: 11, borderRadius: 8 }}
-                                formatter={(val: number, name: string) => [`${val}건`, name]} />
-                              <Legend iconType="circle" iconSize={7}
-                                formatter={(val) => <span style={{ fontSize: 10 }}>{val}</span>} />
+                        <div className="px-3 pt-4 pb-2">
+                          <ResponsiveContainer width="100%" height={280}>
+                            <LineChart data={lineData} margin={{ top: 8, right: 16, left: -10, bottom: 0 }}>
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" strokeWidth={1} />
+                              <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
+                              <YAxis tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} allowDecimals={false} width={30} />
+                              <Tooltip
+                                contentStyle={{ fontSize: 12, borderRadius: 10, border: "1px solid #e2e8f0", boxShadow: "0 4px 16px rgba(0,0,0,0.08)", padding: "8px 12px" }}
+                                itemStyle={{ padding: "1px 0", fontSize: 11 }}
+                                labelStyle={{ fontWeight: 700, color: "#1e293b", marginBottom: 4, fontSize: 12 }}
+                                formatter={(val: number, name: string) => [`${val}건`, name]}
+                              />
                               {activeTeams.map((team, i) => (
                                 <Line key={team} type="monotone" dataKey={team}
                                   stroke={TEAM_COLORS[i % TEAM_COLORS.length]}
-                                  strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                                  strokeWidth={2.5}
+                                  strokeDasharray={TEAM_DASHES[i] || ""}
+                                  dot={{ r: 4, fill: "#fff", strokeWidth: 2.5, stroke: TEAM_COLORS[i % TEAM_COLORS.length] }}
+                                  activeDot={{ r: 6, strokeWidth: 0, fill: TEAM_COLORS[i % TEAM_COLORS.length] }} />
                               ))}
                             </LineChart>
                           </ResponsiveContainer>
+                          {/* 커스텀 범례 — 2열 그리드 */}
+                          <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 px-1 mt-3">
+                            {activeTeams.map((team, i) => (
+                              <div key={team} className="flex items-center gap-2">
+                                <svg width="24" height="10" className="shrink-0">
+                                  <line x1="0" y1="5" x2="24" y2="5"
+                                    stroke={TEAM_COLORS[i % TEAM_COLORS.length]}
+                                    strokeWidth="2.5"
+                                    strokeDasharray={TEAM_DASHES[i] || ""}
+                                  />
+                                  <circle cx="12" cy="5" r="3.5" fill="#fff"
+                                    stroke={TEAM_COLORS[i % TEAM_COLORS.length]} strokeWidth="2.5" />
+                                </svg>
+                                <span className="text-[11px] text-slate-600 dark:text-slate-400 truncate">{team}</span>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       );
                     })()}
