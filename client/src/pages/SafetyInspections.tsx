@@ -1610,6 +1610,18 @@ export default function SafetyInspections() {
     };
   }, [rawInspections, teams, inspectionTargets, dashboardPeriod, selectedMonth, selectedWeekStart, weekEndDate, customStart, customEnd]);
 
+  // ── 점검 진행율 탭: 부서별 월목표 (annualProgressStats보다 먼저 선언) ──────
+  const [deptMonthlyTargets, setDeptMonthlyTargets] = useState<Record<string, number>>(() => {
+    try { const s = localStorage.getItem('inspDeptMonthlyTargets'); return s ? JSON.parse(s) : {}; } catch { return {}; }
+  });
+  const updateDeptMonthlyTarget = (dept: string, val: number) => {
+    setDeptMonthlyTargets(prev => {
+      const next = { ...prev, [dept]: val };
+      localStorage.setItem('inspDeptMonthlyTargets', JSON.stringify(next));
+      return next;
+    });
+  };
+
   // ── 12월까지 연간 목표 대비 진행률 (부서별 잔여 포함) ───────────────────────
   const annualProgressStats = useMemo(() => {
     if (!rawInspections || !teams) return null;
@@ -1619,15 +1631,30 @@ export default function SafetyInspections() {
     const yearInspections = rawInspections.filter(i => i.inspectionDate.startsWith(currentYear));
     const doneThisYear = yearInspections.length;
 
-    const numDepts = teams.length || 1;
-    const monthlyBase = (inspectionTargets?.safetyBujang || 0) + (inspectionTargets?.safetyTeamjang || 0)
-                      + (inspectionTargets?.accompanyBujang || 0) + (inspectionTargets?.accompanyTeamjang || 0);
-    const annualTarget = (inspectionTargets?.totalTarget && inspectionTargets.totalTarget > 0)
-      ? inspectionTargets.totalTarget
-      : monthlyBase * 12;
-    if (annualTarget <= 0) return null;
+    // 부서별 월목표 입력값 우선 사용, 없으면 전역 설정으로 균등 분배
+    const allDepts = teams.map(t => t.name);
+    const hasDeptTargets = allDepts.some(d => (deptMonthlyTargets[d] || 0) > 0);
 
-    const annualPerDept = annualTarget / numDepts;
+    let annualTarget: number;
+    let deptAnnualTargetMap: Record<string, number>;
+
+    if (hasDeptTargets) {
+      deptAnnualTargetMap = Object.fromEntries(
+        allDepts.map(d => [d, (deptMonthlyTargets[d] || 0) * 12])
+      );
+      annualTarget = Object.values(deptAnnualTargetMap).reduce((a, b) => a + b, 0);
+    } else {
+      const numDepts = allDepts.length || 1;
+      const monthlyBase = (inspectionTargets?.safetyBujang || 0) + (inspectionTargets?.safetyTeamjang || 0)
+                        + (inspectionTargets?.accompanyBujang || 0) + (inspectionTargets?.accompanyTeamjang || 0);
+      annualTarget = (inspectionTargets?.totalTarget && inspectionTargets.totalTarget > 0)
+        ? inspectionTargets.totalTarget
+        : monthlyBase * 12;
+      const perDept = annualTarget / numDepts;
+      deptAnnualTargetMap = Object.fromEntries(allDepts.map(d => [d, perDept]));
+    }
+
+    if (annualTarget <= 0) return null;
 
     // 12월 31일까지 남은 기간
     const yearEnd = new Date(now.getFullYear(), 11, 31);
@@ -1636,7 +1663,6 @@ export default function SafetyInspections() {
     const monthsRemaining = Math.max(0.5, msRemaining / (30.44 * 24 * 60 * 60 * 1000));
 
     // 부서별 집계
-    const allDepts = teams.map(t => t.name);
     const deptDone = new Map<string, number>();
     for (const dept of allDepts) deptDone.set(dept, 0);
     for (const insp of yearInspections) {
@@ -1648,13 +1674,15 @@ export default function SafetyInspections() {
 
     const deptStats = allDepts.map(dept => {
       const done = deptDone.get(dept) || 0;
-      const target = Math.round(annualPerDept);
+      const target = Math.round(deptAnnualTargetMap[dept] || 0);
       const remaining = Math.max(0, target - done);
       const weeklyNeed = remaining > 0 ? remaining / weeksRemaining : 0;
       const monthlyNeed = remaining > 0 ? remaining / monthsRemaining : 0;
       return {
         dept: dept.replace('운용팀', '').replace('팀', ''),
+        fullDept: dept,
         done, target, remaining, weeklyNeed, monthlyNeed,
+        monthlyTarget: deptMonthlyTargets[dept] || 0,
       };
     }).sort((a, b) => b.done - a.done);
 
@@ -1667,9 +1695,9 @@ export default function SafetyInspections() {
       monthsRemaining: Math.ceil(monthsRemaining),
       weeklyNeedTotal: totalRemaining > 0 ? totalRemaining / weeksRemaining : 0,
       monthlyNeedTotal: totalRemaining > 0 ? totalRemaining / monthsRemaining : 0,
-      deptStats,
+      deptStats, hasDeptTargets,
     };
-  }, [rawInspections, teams, inspectionTargets]);
+  }, [rawInspections, teams, inspectionTargets, deptMonthlyTargets]);
 
   const filteredInspections = useMemo(() => {
     if (!rawInspections) return [];
@@ -2157,6 +2185,77 @@ export default function SafetyInspections() {
             </Button>
             <input ref={uploadedInspFileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleUploadedInspFile} />
           </div>
+
+          {/* 부서별 월목표 설정 */}
+          {teams && teams.length > 0 && (
+            <div className="border border-border rounded-xl overflow-hidden">
+              <div className="bg-slate-50 dark:bg-slate-900/40 px-3 py-2 border-b border-border flex items-center justify-between">
+                <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                  <Settings className="w-3.5 h-3.5 text-indigo-500" />
+                  부서별 월목표 설정
+                </p>
+                <span className="text-[10px] text-muted-foreground">입력하면 연간목표 자동 계산 · 브라우저에 저장됨</span>
+              </div>
+              <div className="divide-y divide-border">
+                {/* 헤더 */}
+                <div className="grid grid-cols-3 px-3 py-1.5 bg-slate-50/50 dark:bg-slate-900/20">
+                  <span className="text-[10px] font-semibold text-muted-foreground">부서</span>
+                  <span className="text-[10px] font-semibold text-muted-foreground text-center">월 목표 (건)</span>
+                  <span className="text-[10px] font-semibold text-indigo-600 text-right">연간 목표 (×12)</span>
+                </div>
+                {teams.map(team => {
+                  const monthly = deptMonthlyTargets[team.name] || 0;
+                  const annual = monthly * 12;
+                  return (
+                    <div key={team.name} className="grid grid-cols-3 items-center px-3 py-1.5 gap-2 hover:bg-muted/30 transition-colors">
+                      <span className="text-xs font-medium text-foreground truncate">
+                        {team.name.replace('운용팀', '').replace('팀', '')}
+                      </span>
+                      <div className="flex justify-center">
+                        <input
+                          type="number"
+                          min={0}
+                          max={999}
+                          value={monthly || ""}
+                          placeholder="0"
+                          onChange={e => updateDeptMonthlyTarget(team.name, Number(e.target.value) || 0)}
+                          className="w-16 h-7 text-xs text-center border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-indigo-400 px-1"
+                        />
+                      </div>
+                      <div className="text-right">
+                        {annual > 0 ? (
+                          <span className="text-sm font-bold text-indigo-600">{annual}<span className="text-[10px] font-normal text-muted-foreground ml-0.5">건</span></span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+                {/* 합계 행 */}
+                {Object.values(deptMonthlyTargets).some(v => v > 0) && (
+                  <div className="grid grid-cols-3 items-center px-3 py-2 bg-indigo-50/60 dark:bg-indigo-950/20 gap-2">
+                    <span className="text-xs font-bold text-foreground">합계</span>
+                    <div className="text-center">
+                      <span className="text-xs font-semibold text-foreground">
+                        {Object.entries(deptMonthlyTargets)
+                          .filter(([k]) => teams.some(t => t.name === k))
+                          .reduce((s, [, v]) => s + v, 0)}건/월
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-sm font-bold text-indigo-700 dark:text-indigo-300">
+                        {Object.entries(deptMonthlyTargets)
+                          .filter(([k]) => teams.some(t => t.name === k))
+                          .reduce((s, [, v]) => s + v * 12, 0)}
+                        <span className="text-[10px] font-normal text-muted-foreground ml-0.5">건/년</span>
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* 업로드된 데이터 통계 */}
           {uploadedInspStats && (
