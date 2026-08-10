@@ -2437,69 +2437,92 @@ export default function SafetyInspections() {
                       );
                     })()}
 
-                    {/* 팀별 뷰 — 월별 스택 세로막대 */}
+                    {/* 팀별 뷰 — 팀 × 월 미니바 */}
                     {monthChartMode === "팀별" && (() => {
                       const TEAM_COLORS: Record<string, string> = {
-                        "동대구운용팀": "#6366f1",
-                        "포항운용팀":   "#8b5cf6",
-                        "안동운용팀":   "#ec4899",
-                        "서대구운용팀": "#f97316",
-                        "남대구운용팀": "#eab308",
-                        "구미운용팀":   "#22c55e",
-                        "문경운용팀":   "#14b8a6",
-                        "현장경영팀":   "#64748b",
+                        "동대구운용팀": "linear-gradient(90deg,#818cf8,#6366f1)",
+                        "포항운용팀":   "linear-gradient(90deg,#a78bfa,#8b5cf6)",
+                        "안동운용팀":   "linear-gradient(90deg,#f9a8d4,#ec4899)",
+                        "서대구운용팀": "linear-gradient(90deg,#fdba74,#f97316)",
+                        "남대구운용팀": "linear-gradient(90deg,#fde047,#eab308)",
+                        "구미운용팀":   "linear-gradient(90deg,#86efac,#22c55e)",
+                        "문경운용팀":   "linear-gradient(90deg,#5eead4,#14b8a6)",
+                        "현장경영팀":   "linear-gradient(90deg,#94a3b8,#64748b)",
+                      };
+                      const TEAM_GLOW: Record<string, string> = {
+                        "동대구운용팀": "rgba(99,102,241,0.35)",
+                        "포항운용팀":   "rgba(139,92,246,0.35)",
+                        "안동운용팀":   "rgba(236,72,153,0.35)",
+                        "서대구운용팀": "rgba(249,115,22,0.35)",
+                        "남대구운용팀": "rgba(234,179,8,0.35)",
+                        "구미운용팀":   "rgba(34,197,94,0.35)",
+                        "문경운용팀":   "rgba(20,184,166,0.35)",
+                        "현장경영팀":   "rgba(100,116,139,0.35)",
                       };
                       const activeTeams = TEAM_ORDER.filter(t =>
                         Object.values(uploadedInspStats.byMonthByTeam).some(m => m[t])
                       );
-                      const chartData = uploadedInspStats.sortedMonths.map(([month, total]) => {
-                        const row: Record<string, string | number> = { month: `${parseInt(month.slice(5))}월`, total };
-                        activeTeams.forEach(t => { row[t] = uploadedInspStats.byMonthByTeam[month]?.[t] ?? 0; });
-                        return row;
-                      });
-                      const yMax = Math.max(...chartData.map(d => d.total as number), 1) * 1.18;
+                      const months = uploadedInspStats.sortedMonths.map(([m]) => m);
+                      const allVals = activeTeams.flatMap(t =>
+                        months.map(m => uploadedInspStats.byMonthByTeam[m]?.[t] ?? 0)
+                      );
+                      const globalMax = Math.max(...allVals, 1);
+
                       return (
-                        <div className="px-2 pt-4 pb-1">
-                          <ResponsiveContainer width="100%" height={260}>
-                            <BarChart data={chartData} margin={{ top: 18, right: 10, left: -10, bottom: 0 }} barCategoryGap="28%">
-                              <defs>
-                                {activeTeams.map(t => {
-                                  const base = TEAM_COLORS[t] ?? "#a5b4fc";
+                        <div className="px-3 pt-4 pb-3 space-y-4">
+                          {/* 월 헤더 */}
+                          <div className="flex items-center gap-1 pl-[84px]">
+                            {months.map(m => (
+                              <div key={m} className="flex-1 text-center text-[10px] font-semibold text-slate-400">
+                                {parseInt(m.slice(5))}월
+                              </div>
+                            ))}
+                            <div className="w-9 text-right text-[10px] font-bold text-indigo-400 shrink-0">합계</div>
+                          </div>
+
+                          {/* 팀 × 월 행 */}
+                          {activeTeams.map(t => {
+                            const grad = TEAM_COLORS[t] ?? "linear-gradient(90deg,#a5b4fc,#6366f1)";
+                            const glow = TEAM_GLOW[t] ?? "rgba(99,102,241,0.3)";
+                            const teamTotal = months.reduce((s, m) => s + (uploadedInspStats.byMonthByTeam[m]?.[t] ?? 0), 0);
+                            return (
+                              <div key={t} className="flex items-center gap-1">
+                                {/* 팀명 */}
+                                <div className="w-[84px] shrink-0">
+                                  <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 leading-tight block truncate">{t}</span>
+                                </div>
+                                {/* 월별 미니바 */}
+                                {months.map(m => {
+                                  const v = uploadedInspStats.byMonthByTeam[m]?.[t] ?? 0;
+                                  const h = Math.max(4, Math.round((v / globalMax) * 36));
                                   return (
-                                    <linearGradient key={t} id={`tg-${t}`} x1="0" y1="0" x2="0" y2="1">
-                                      <stop offset="0%" stopColor={base} stopOpacity={1} />
-                                      <stop offset="100%" stopColor={base} stopOpacity={0.65} />
-                                    </linearGradient>
+                                    <div key={m} className="flex-1 flex flex-col items-center justify-end gap-0.5" style={{ height: 44 }}>
+                                      {v > 0 && (
+                                        <span className="text-[9px] font-bold text-slate-500 leading-none">{v}</span>
+                                      )}
+                                      <div className="w-full rounded-full overflow-hidden" style={{ height: h, background: v > 0 ? grad : "rgba(148,163,184,0.12)", boxShadow: v > 0 ? `0 2px 6px ${glow}` : "none", transition: "height 0.5s ease" }} />
+                                    </div>
                                   );
                                 })}
-                              </defs>
-                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(148,163,184,0.15)" />
-                              <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#64748b", fontWeight: 600 }} axisLine={false} tickLine={false} />
-                              <YAxis domain={[0, yMax]} tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} allowDecimals={false} width={26} />
-                              <Tooltip
-                                cursor={{ fill: "rgba(99,102,241,0.05)", radius: 6 }}
-                                contentStyle={{ fontSize: 12, borderRadius: 10, border: "1px solid #e2e8f0", boxShadow: "0 8px 24px rgba(0,0,0,0.08)", padding: "8px 12px" }}
-                                formatter={(val: number, name: string) => val > 0 ? [val + "건", name] : ["", name]}
-                                labelStyle={{ fontWeight: 700, color: "#1e293b", marginBottom: 4 }}
-                              />
-                              <Legend
-                                wrapperStyle={{ fontSize: 10, paddingTop: 10, lineHeight: "20px" }}
-                                iconType="circle" iconSize={8}
-                              />
-                              {activeTeams.map((t, i) => (
-                                <Bar key={t} dataKey={t} stackId="s" name={t}
-                                  fill={`url(#tg-${t})`}
-                                  stroke={TEAM_COLORS[t] ?? "#a5b4fc"}
-                                  strokeWidth={0.5}
-                                  radius={i === activeTeams.length - 1 ? [5, 5, 0, 0] : [0, 0, 0, 0]}
-                                  isAnimationActive={true} animationDuration={600} animationEasing="ease-out">
-                                  <LabelList dataKey={t} position="inside"
-                                    style={{ fontSize: 9, fill: "#fff", fontWeight: 700 }}
-                                    formatter={(v: number) => v >= 3 ? v : ""} />
-                                </Bar>
-                              ))}
-                            </BarChart>
-                          </ResponsiveContainer>
+                                {/* 팀 합계 */}
+                                <div className="w-9 shrink-0 text-right">
+                                  <span className="text-[12px] font-black text-slate-600 dark:text-slate-300">{teamTotal}</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+
+                          {/* 월별 합계 행 */}
+                          <div className="flex items-center gap-1 pt-2 border-t border-indigo-100 dark:border-indigo-900/30">
+                            <div className="w-[84px] shrink-0 text-[10px] font-bold text-indigo-400">월 합계</div>
+                            {months.map(m => {
+                              const mTotal = uploadedInspStats.sortedMonths.find(([mo]) => mo === m)?.[1] ?? 0;
+                              return (
+                                <div key={m} className="flex-1 text-center text-[11px] font-black text-indigo-600">{mTotal || ""}</div>
+                              );
+                            })}
+                            <div className="w-9 text-right text-[12px] font-black text-indigo-700">{uploadedInspStats.total}</div>
+                          </div>
                         </div>
                       );
                     })()}
