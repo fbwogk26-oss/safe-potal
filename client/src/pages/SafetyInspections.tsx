@@ -1634,6 +1634,10 @@ export default function SafetyInspections() {
   };
   const normalizeUploadTeam = (team: string) => TEAM_MERGE[team] ?? team;
 
+  // 팀 표시 순서 (전역 고정)
+  const TEAM_ORDER = ["동대구운용팀","포항운용팀","안동운용팀","서대구운용팀","남대구운용팀","구미운용팀","문경운용팀","현장경영팀"];
+  const teamOrderKey = (name: string) => { const i = TEAM_ORDER.indexOf(name); return i >= 0 ? i : TEAM_ORDER.length; };
+
   // ISO 주차 키 반환 ("YYYY-WNN")
   const getISOWeekKey = (dateStr: string): string => {
     const d = new Date(dateStr.slice(0, 10));
@@ -1659,7 +1663,8 @@ export default function SafetyInspections() {
     // 부서별 월목표 입력값 우선 사용, 없으면 전역 설정으로 균등 분배
     // 현장경영팀은 teams DB에 없을 수 있으므로 항상 포함
     const EXTRA_DEPTS = ["현장경영팀"];
-    const allDepts = [...new Set([...teams.map(t => t.name), ...EXTRA_DEPTS])];
+    const allDepts = [...new Set([...teams.map(t => t.name), ...EXTRA_DEPTS])]
+      .sort((a, b) => teamOrderKey(a) - teamOrderKey(b));
     const hasDeptTargets = allDepts.some(d => (deptMonthlyTargets[d] || 0) > 0);
 
     let annualTarget: number;
@@ -1719,7 +1724,7 @@ export default function SafetyInspections() {
         done, target, remaining, weeklyNeed, monthlyNeed,
         monthlyTarget: deptMonthlyTargets[dept] || 0,
       };
-    }).sort((a, b) => b.done - a.done);
+    }).sort((a, b) => teamOrderKey(a.dept) - teamOrderKey(b.dept));
 
     const totalRemaining = Math.max(0, annualTarget - doneThisYear);
     const pct = Math.min(100, Math.round(doneThisYear / annualTarget * 100));
@@ -1817,7 +1822,7 @@ export default function SafetyInspections() {
     }
     const sortedMonths = Object.entries(byMonth).sort((a, b) => a[0].localeCompare(b[0]));
     const sortedWeeks  = Object.entries(byWeek).sort((a, b) => a[0].localeCompare(b[0]));
-    const sortedTeams  = Object.entries(byTeam).sort((a, b) => b[1] - a[1]);
+    const sortedTeams  = Object.entries(byTeam).sort((a, b) => teamOrderKey(a[0]) - teamOrderKey(b[0]));
     const maxTeam  = Math.max(...Object.values(byTeam));
     const maxMonth = Math.max(...Object.values(byMonth));
     const maxWeek  = sortedWeeks.length ? Math.max(...Object.values(byWeek)) : 1;
@@ -2364,10 +2369,22 @@ export default function SafetyInspections() {
                         : pct >= 100 ? "bg-emerald-500"
                         : pct >= 70 ? "bg-violet-500"
                         : "bg-orange-400";
-                      const weekLabel = wk.split("-W")[1] ? `${parseInt(wk.split("-W")[1])}주차` : wk;
+                      const [wy, wn] = wk.split("-W");
+                      const weekNum = parseInt(wn || "0");
+                      // ISO week → 월요일 날짜 계산
+                      const jan4 = new Date(parseInt(wy), 0, 4);
+                      const mon1 = new Date(jan4); mon1.setDate(jan4.getDate() - ((jan4.getDay() + 6) % 7));
+                      const monDate = new Date(mon1); monDate.setDate(mon1.getDate() + (weekNum - 1) * 7);
+                      const sunDate = new Date(monDate); sunDate.setDate(monDate.getDate() + 6);
+                      const fmt = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}`;
+                      const weekLabel = weekNum ? `${weekNum}주차` : wk;
+                      const weekRange = weekNum ? `${fmt(monDate)}~${fmt(sunDate)}` : "";
                       return (
                         <div key={wk} className="flex items-center gap-2 px-3 py-1.5">
-                          <span className="text-xs font-medium text-foreground w-14 shrink-0">{weekLabel}</span>
+                          <div className="w-24 shrink-0">
+                            <span className="text-xs font-medium text-foreground block">{weekLabel}</span>
+                            {weekRange && <span className="text-[10px] text-muted-foreground">{weekRange}</span>}
+                          </div>
                           <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
                             <div className={`h-full ${barColor} rounded-full transition-all`} style={{ width: `${barWidth}%` }} />
                           </div>
@@ -3407,6 +3424,7 @@ export default function SafetyInspections() {
             {/* 팀 목록 (운용팀 + 현장경영팀) */}
             {[...(teams || []).map(t => t.name), "현장경영팀"]
               .filter((v, i, a) => a.indexOf(v) === i)
+              .sort((a, b) => teamOrderKey(a) - teamOrderKey(b))
               .map(name => {
                 const monthly = deptMonthlyTargets[name] || 0;
                 const annual = monthly * 12;
