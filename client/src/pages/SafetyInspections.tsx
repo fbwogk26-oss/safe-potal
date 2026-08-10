@@ -1862,10 +1862,10 @@ export default function SafetyInspections() {
         </button>
       </div>
 
-      {inspectionStats && (
+      {inspectionStats && activeTab === "진행율" && (
         <Card>
           <CardHeader
-            className="bg-gradient-to-r from-slate-50 to-blue-50 dark:from-slate-900/40 dark:to-blue-900/20 border-b p-3 sm:p-4 cursor-pointer"
+            className="bg-gradient-to-r from-slate-50 to-blue-50 dark:from-slate-900/40 dark:to-blue-900/20 border-b p-3 sm:p-4"
             onClick={() => { if (activeTab !== "진행율") setShowInspDashboard(!showInspDashboard); }}
             data-testid="button-toggle-dashboard"
             style={activeTab === "진행율" ? { cursor: "default" } : undefined}
