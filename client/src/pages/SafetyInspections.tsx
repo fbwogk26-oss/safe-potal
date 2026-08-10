@@ -2300,47 +2300,75 @@ export default function SafetyInspections() {
 
                 {/* 팀별 */}
                 {chartView === "팀별" && (() => {
-                  const TEAM_COLORS: Record<string, string> = {
-                    "동대구운용팀": "#6366f1",
-                    "포항운용팀":   "#8b5cf6",
-                    "안동운용팀":   "#ec4899",
-                    "서대구운용팀": "#f97316",
-                    "남대구운용팀": "#eab308",
-                    "구미운용팀":   "#22c55e",
-                    "문경운용팀":   "#14b8a6",
-                    "현장경영팀":   "#64748b",
-                  };
-                  const activeMonths = uploadedInspStats.sortedMonths.map(([m]) => m);
-                  const chartData = uploadedInspStats.sortedTeams.map(([team]) => {
-                    const row: Record<string, string | number> = { team: team.replace("운용팀","").replace("현장경영팀","현장경영") };
-                    activeMonths.forEach(m => { row[m] = uploadedInspStats.byMonthByTeam[m]?.[team] ?? 0; });
-                    return row;
+                  const chartData = uploadedInspStats.sortedTeams.map(([team, cnt]) => {
+                    const annualTarget = (deptMonthlyTargets[team] || 0) * 12;
+                    const remaining = annualTarget > 0 ? Math.max(0, annualTarget - cnt) : 0;
+                    const pct = annualTarget > 0 ? Math.round(cnt / annualTarget * 100) : null;
+                    return {
+                      team: team.replace("운용팀","").replace("현장경영팀","현장경영"),
+                      fullTeam: team,
+                      점검건수: cnt,
+                      잔여횟수: remaining,
+                      annualTarget,
+                      pct,
+                    };
                   });
-                  const chartHeight = Math.max(240, chartData.length * 52);
-                  const monthLabel = (m: string) => `${parseInt(m.slice(5))}월`;
+                  const chartHeight = Math.max(240, chartData.length * 56);
                   return (
-                    <div className="px-1 pt-3 pb-2">
+                    <div className="px-2 pt-4 pb-2">
                       <ResponsiveContainer width="100%" height={chartHeight}>
-                        <BarChart data={chartData} layout="vertical" margin={{ top: 4, right: 48, left: 52, bottom: 4 }} barCategoryGap="22%">
-                          <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="rgba(148,163,184,0.2)" />
+                        <BarChart data={chartData} layout="vertical" margin={{ top: 4, right: 60, left: 56, bottom: 4 }} barCategoryGap="28%">
+                          <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="rgba(148,163,184,0.15)" />
                           <XAxis type="number" tick={{ fontSize: 11, fill: "#94a3b8" }} tickLine={false} axisLine={false} allowDecimals={false} />
-                          <YAxis type="category" dataKey="team" tick={{ fontSize: 12, fontWeight: 700, fill: "#475569" }} tickLine={false} axisLine={false} width={52} />
+                          <YAxis type="category" dataKey="team" tick={{ fontSize: 12, fontWeight: 700, fill: "#475569" }} tickLine={false} axisLine={false} width={56} />
                           <Tooltip
                             cursor={{ fill: "rgba(99,102,241,0.06)" }}
                             contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e2e8f0", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}
-                            formatter={(value: number, name: string) => [value + "건", monthLabel(name)]}
+                            content={({ active, payload }) => {
+                              if (!active || !payload?.length) return null;
+                              const d = payload[0]?.payload;
+                              return (
+                                <div className="bg-white rounded-lg border border-slate-200 shadow-lg p-2.5 text-xs">
+                                  <p className="font-bold text-slate-700 mb-1.5">{d.fullTeam}</p>
+                                  <p className="text-indigo-600 font-semibold">점검건수: {d.점검건수}건</p>
+                                  {d.annualTarget > 0 && <>
+                                    <p className="text-slate-400 font-medium">잔여횟수: {d.잔여횟수}건</p>
+                                    <p className="text-slate-500 mt-1">연간목표: {d.annualTarget}건
+                                      {d.pct !== null && <span className={`ml-1.5 font-bold ${d.pct >= 100 ? "text-emerald-600" : d.pct >= 70 ? "text-indigo-600" : "text-orange-500"}`}>({d.pct}%)</span>}
+                                    </p>
+                                  </>}
+                                </div>
+                              );
+                            }}
                           />
-                          <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} formatter={(v) => monthLabel(v)} />
-                          {activeMonths.map((m, i) => (
-                            <Bar key={m} dataKey={m} stackId="a"
-                              fill={`hsl(${220 + i * (120 / Math.max(activeMonths.length - 1, 1))}, 70%, ${55 - i * 3}%)`}
-                              radius={i === activeMonths.length - 1 ? [0, 4, 4, 0] : [0, 0, 0, 0]}>
-                              <LabelList dataKey={m} position="inside" style={{ fontSize: 10, fill: "#fff", fontWeight: 700 }}
-                                formatter={(v: number) => v > 0 ? v : ""} />
-                            </Bar>
-                          ))}
+                          <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
+                            formatter={(v) => v === "점검건수" ? "점검건수 (달성)" : "잔여횟수"} />
+                          <Bar dataKey="점검건수" stackId="a" radius={[0, 0, 0, 0]}>
+                            {chartData.map((d, i) => (
+                              <Cell key={i} fill={
+                                d.pct === null ? "#6366f1"
+                                : d.pct >= 100 ? "#10b981"
+                                : d.pct >= 70  ? "#6366f1"
+                                : "#f97316"
+                              } />
+                            ))}
+                            <LabelList dataKey="점검건수" position="inside"
+                              style={{ fontSize: 11, fill: "#fff", fontWeight: 700 }}
+                              formatter={(v: number) => v > 0 ? `${v}건` : ""} />
+                          </Bar>
+                          <Bar dataKey="잔여횟수" stackId="a" fill="rgba(148,163,184,0.25)" radius={[0, 4, 4, 0]}>
+                            <LabelList dataKey="잔여횟수" position="insideRight"
+                              style={{ fontSize: 10, fill: "#94a3b8", fontWeight: 600 }}
+                              formatter={(v: number) => v > 0 ? `잔여 ${v}` : ""} />
+                          </Bar>
                         </BarChart>
                       </ResponsiveContainer>
+                      <div className="flex justify-center gap-5 mt-1 text-[10px] text-muted-foreground">
+                        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-500 inline-block"/>100% 이상</span>
+                        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-indigo-500 inline-block"/>70% 이상</span>
+                        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-orange-400 inline-block"/>70% 미만</span>
+                        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-slate-300 inline-block"/>잔여</span>
+                      </div>
                     </div>
                   );
                 })()}
