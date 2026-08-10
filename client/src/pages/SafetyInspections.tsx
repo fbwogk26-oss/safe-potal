@@ -1631,6 +1631,7 @@ export default function SafetyInspections() {
     "대구본부": "현장경영팀",
     "동대구운용부": "현장경영팀",
     "서대구운용부": "현장경영팀",
+    "사업지원팀": "동대구운용팀",
   };
   const normalizeUploadTeam = (team: string) => TEAM_MERGE[team] ?? team;
 
