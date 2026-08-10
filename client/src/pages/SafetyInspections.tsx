@@ -23,7 +23,7 @@ import type { SafetyInspection, Team } from "@shared/schema";
 import ExcelJS from "exceljs";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useAuth } from "@/hooks/use-auth";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList, LineChart, Line, ReferenceLine, Cell } from "recharts";
 
 // 작업내용 끝 (점검유형) 접미사에서 점검유형 자동 감지
 // 예: "BMS 보드 불량(안전점검)" → { type: "안전점검", content: "BMS 보드 불량" }
@@ -2354,56 +2354,85 @@ export default function SafetyInspections() {
                       ))}
                     </div>
 
-                    {/* 합계 뷰 */}
-                    {monthChartMode === "합계" && (
-                      <div className="divide-y divide-border">
-                        {uploadedInspStats.sortedMonths.map(([month, cnt]) => (
-                          <div key={month} className="flex items-center gap-2 px-3 py-1.5">
-                            <span className="text-xs font-medium text-foreground w-16 shrink-0">{month.slice(5)}월</span>
-                            <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                              <div className="h-full bg-blue-500 rounded-full transition-all"
-                                style={{ width: `${(cnt / uploadedInspStats.maxMonth) * 100}%` }} />
+                    {/* 합계 뷰 — 세로 막대 + 목표 기준선 */}
+                    {monthChartMode === "합계" && (() => {
+                      const monthlyTargetTotal = Object.values(deptMonthlyTargets).reduce((s, v) => s + v, 0);
+                      const barData = uploadedInspStats.sortedMonths.map(([month, cnt]) => ({
+                        month: `${parseInt(month.slice(5))}월`,
+                        실적: cnt,
+                        target: monthlyTargetTotal,
+                      }));
+                      const yMax = Math.max(uploadedInspStats.maxMonth, monthlyTargetTotal) * 1.15;
+                      return (
+                        <div className="px-2 pt-3 pb-1">
+                          <ResponsiveContainer width="100%" height={220}>
+                            <BarChart data={barData} margin={{ top: 10, right: 10, left: -18, bottom: 0 }} barCategoryGap="30%">
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                              <XAxis dataKey="month" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                              <YAxis domain={[0, yMax]} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                              <Tooltip
+                                formatter={(val: number, name: string) => [`${val}건`, name === "실적" ? "실적" : "목표"]}
+                                contentStyle={{ fontSize: 11, borderRadius: 8 }}
+                              />
+                              {monthlyTargetTotal > 0 && (
+                                <ReferenceLine y={monthlyTargetTotal} stroke="#94a3b8" strokeDasharray="5 3" strokeWidth={1.5}
+                                  label={{ value: `목표 ${monthlyTargetTotal}`, position: "insideTopRight", fontSize: 10, fill: "#64748b" }} />
+                              )}
+                              <Bar dataKey="실적" radius={[4, 4, 0, 0]} maxBarSize={40}>
+                                {barData.map((entry, i) => {
+                                  const pct = monthlyTargetTotal > 0 ? entry.실적 / monthlyTargetTotal : null;
+                                  const color = pct === null ? "#6366f1"
+                                    : pct >= 1 ? "#10b981"
+                                    : pct >= 0.7 ? "#6366f1"
+                                    : "#f59e0b";
+                                  return <Cell key={i} fill={color} />;
+                                })}
+                                <LabelList dataKey="실적" position="top" style={{ fontSize: 9, fill: "#475569" }} />
+                              </Bar>
+                            </BarChart>
+                          </ResponsiveContainer>
+                          {monthlyTargetTotal > 0 && (
+                            <div className="flex justify-center gap-4 mt-1 text-[10px] text-muted-foreground">
+                              <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm bg-emerald-500" />목표 달성</span>
+                              <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm bg-indigo-500" />70% 이상</span>
+                              <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm bg-amber-400" />70% 미만</span>
                             </div>
-                            <span className="text-xs font-bold text-blue-600 w-8 text-right shrink-0">{cnt}</span>
-                            <span className="text-[10px] text-muted-foreground w-10 text-right shrink-0">
-                              {Math.round(cnt / uploadedInspStats.total * 100)}%
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                          )}
+                        </div>
+                      );
+                    })()}
 
-                    {/* 팀별 뷰 — 월별로 팀 내역 */}
-                    {monthChartMode === "팀별" && (
-                      <div className="divide-y divide-border">
-                        {uploadedInspStats.sortedMonths.map(([month, total]) => {
-                          const teamMap = uploadedInspStats.byMonthByTeam[month] || {};
-                          const sortedEntries = Object.entries(teamMap)
-                            .sort((a, b) => teamOrderKey(a[0]) - teamOrderKey(b[0]));
-                          const maxInMonth = Math.max(...Object.values(teamMap), 1);
-                          return (
-                            <div key={month} className="px-3 py-2 space-y-1">
-                              {/* 월 헤더 */}
-                              <div className="flex items-center justify-between mb-1">
-                                <span className="text-xs font-bold text-foreground">{month.slice(5)}월</span>
-                                <span className="text-[10px] text-muted-foreground">합계 {total}건</span>
-                              </div>
-                              {/* 팀별 미니 바 */}
-                              {sortedEntries.map(([team, cnt]) => (
-                                <div key={team} className="flex items-center gap-2">
-                                  <span className="text-[11px] text-muted-foreground w-20 shrink-0 truncate">{team}</span>
-                                  <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-                                    <div className="h-full bg-blue-400 rounded-full transition-all"
-                                      style={{ width: `${(cnt / maxInMonth) * 100}%` }} />
-                                  </div>
-                                  <span className="text-[11px] font-semibold text-blue-600 w-6 text-right shrink-0">{cnt}</span>
-                                </div>
+                    {/* 팀별 뷰 — 꺾은선 그래프 */}
+                    {monthChartMode === "팀별" && (() => {
+                      const TEAM_COLORS = ["#6366f1","#0ea5e9","#10b981","#f59e0b","#ef4444","#8b5cf6","#ec4899","#6b7280"];
+                      // 데이터에 실제 등장한 팀만
+                      const activeTeams = TEAM_ORDER.filter(t => Object.values(uploadedInspStats.byMonthByTeam).some(m => m[t]));
+                      const lineData = uploadedInspStats.sortedMonths.map(([month]) => {
+                        const entry: Record<string, string | number> = { month: `${parseInt(month.slice(5))}월` };
+                        activeTeams.forEach(t => { entry[t] = uploadedInspStats.byMonthByTeam[month]?.[t] ?? 0; });
+                        return entry;
+                      });
+                      return (
+                        <div className="px-2 pt-3 pb-1">
+                          <ResponsiveContainer width="100%" height={220}>
+                            <LineChart data={lineData} margin={{ top: 10, right: 10, left: -18, bottom: 0 }}>
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                              <XAxis dataKey="month" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                              <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                              <Tooltip contentStyle={{ fontSize: 11, borderRadius: 8 }}
+                                formatter={(val: number, name: string) => [`${val}건`, name]} />
+                              <Legend iconType="circle" iconSize={7}
+                                formatter={(val) => <span style={{ fontSize: 10 }}>{val}</span>} />
+                              {activeTeams.map((team, i) => (
+                                <Line key={team} type="monotone" dataKey={team}
+                                  stroke={TEAM_COLORS[i % TEAM_COLORS.length]}
+                                  strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
                               ))}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
+                            </LineChart>
+                          </ResponsiveContainer>
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
 
