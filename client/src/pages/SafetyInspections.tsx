@@ -1611,6 +1611,7 @@ export default function SafetyInspections() {
   }, [rawInspections, teams, inspectionTargets, dashboardPeriod, selectedMonth, selectedWeekStart, weekEndDate, customStart, customEnd]);
 
   // ── 점검 진행율 탭: 부서별 월목표 (annualProgressStats보다 먼저 선언) ──────
+  const [showDeptTargetDialog, setShowDeptTargetDialog] = useState(false);
   const [deptMonthlyTargets, setDeptMonthlyTargets] = useState<Record<string, number>>(() => {
     try { const s = localStorage.getItem('inspDeptMonthlyTargets'); return s ? JSON.parse(s) : {}; } catch { return {}; }
   });
@@ -1632,7 +1633,9 @@ export default function SafetyInspections() {
     const doneThisYear = yearInspections.length;
 
     // 부서별 월목표 입력값 우선 사용, 없으면 전역 설정으로 균등 분배
-    const allDepts = teams.map(t => t.name);
+    // 현장경영팀은 teams DB에 없을 수 있으므로 항상 포함
+    const EXTRA_DEPTS = ["현장경영팀"];
+    const allDepts = [...new Set([...teams.map(t => t.name), ...EXTRA_DEPTS])];
     const hasDeptTargets = allDepts.some(d => (deptMonthlyTargets[d] || 0) > 0);
 
     let annualTarget: number;
@@ -1679,8 +1682,7 @@ export default function SafetyInspections() {
       const weeklyNeed = remaining > 0 ? remaining / weeksRemaining : 0;
       const monthlyNeed = remaining > 0 ? remaining / monthsRemaining : 0;
       return {
-        dept: dept.replace('운용팀', '').replace('팀', ''),
-        fullDept: dept,
+        dept,
         done, target, remaining, weeklyNeed, monthlyNeed,
         monthlyTarget: deptMonthlyTargets[dept] || 0,
       };
@@ -2186,76 +2188,25 @@ export default function SafetyInspections() {
             <input ref={uploadedInspFileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleUploadedInspFile} />
           </div>
 
-          {/* 부서별 월목표 설정 */}
-          {teams && teams.length > 0 && (
-            <div className="border border-border rounded-xl overflow-hidden">
-              <div className="bg-slate-50 dark:bg-slate-900/40 px-3 py-2 border-b border-border flex items-center justify-between">
-                <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                  <Settings className="w-3.5 h-3.5 text-indigo-500" />
-                  부서별 월목표 설정
-                </p>
-                <span className="text-[10px] text-muted-foreground">입력하면 연간목표 자동 계산 · 브라우저에 저장됨</span>
-              </div>
-              <div className="divide-y divide-border">
-                {/* 헤더 */}
-                <div className="grid grid-cols-3 px-3 py-1.5 bg-slate-50/50 dark:bg-slate-900/20">
-                  <span className="text-[10px] font-semibold text-muted-foreground">부서</span>
-                  <span className="text-[10px] font-semibold text-muted-foreground text-center">월 목표 (건)</span>
-                  <span className="text-[10px] font-semibold text-indigo-600 text-right">연간 목표 (×12)</span>
-                </div>
-                {teams.map(team => {
-                  const monthly = deptMonthlyTargets[team.name] || 0;
-                  const annual = monthly * 12;
-                  return (
-                    <div key={team.name} className="grid grid-cols-3 items-center px-3 py-1.5 gap-2 hover:bg-muted/30 transition-colors">
-                      <span className="text-xs font-medium text-foreground truncate">
-                        {team.name.replace('운용팀', '').replace('팀', '')}
-                      </span>
-                      <div className="flex justify-center">
-                        <input
-                          type="number"
-                          min={0}
-                          max={999}
-                          value={monthly || ""}
-                          placeholder="0"
-                          onChange={e => updateDeptMonthlyTarget(team.name, Number(e.target.value) || 0)}
-                          className="w-16 h-7 text-xs text-center border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-indigo-400 px-1"
-                        />
-                      </div>
-                      <div className="text-right">
-                        {annual > 0 ? (
-                          <span className="text-sm font-bold text-indigo-600">{annual}<span className="text-[10px] font-normal text-muted-foreground ml-0.5">건</span></span>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-                {/* 합계 행 */}
-                {Object.values(deptMonthlyTargets).some(v => v > 0) && (
-                  <div className="grid grid-cols-3 items-center px-3 py-2 bg-indigo-50/60 dark:bg-indigo-950/20 gap-2">
-                    <span className="text-xs font-bold text-foreground">합계</span>
-                    <div className="text-center">
-                      <span className="text-xs font-semibold text-foreground">
-                        {Object.entries(deptMonthlyTargets)
-                          .filter(([k]) => teams.some(t => t.name === k))
-                          .reduce((s, [, v]) => s + v, 0)}건/월
-                      </span>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-sm font-bold text-indigo-700 dark:text-indigo-300">
-                        {Object.entries(deptMonthlyTargets)
-                          .filter(([k]) => teams.some(t => t.name === k))
-                          .reduce((s, [, v]) => s + v * 12, 0)}
-                        <span className="text-[10px] font-normal text-muted-foreground ml-0.5">건/년</span>
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </div>
+          {/* 월목표 설정 버튼 */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {annualProgressStats?.hasDeptTargets && (
+                <span className="text-xs text-muted-foreground">
+                  월 합계 <span className="font-semibold text-indigo-600">
+                    {Object.values(deptMonthlyTargets).reduce((s, v) => s + v, 0)}건
+                  </span> · 연간 <span className="font-semibold text-indigo-600">
+                    {Object.values(deptMonthlyTargets).reduce((s, v) => s + v * 12, 0)}건
+                  </span>
+                </span>
+              )}
             </div>
-          )}
+            <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5 border-indigo-300 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-700 dark:text-indigo-400"
+              onClick={() => setShowDeptTargetDialog(true)}>
+              <Settings className="w-3.5 h-3.5" />
+              부서별 월목표 설정
+            </Button>
+          </div>
 
           {/* 업로드된 데이터 통계 */}
           {uploadedInspStats && (
@@ -3323,6 +3274,81 @@ export default function SafetyInspections() {
                 )}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── 부서별 월목표 설정 팝업 ── */}
+      <Dialog open={showDeptTargetDialog} onOpenChange={setShowDeptTargetDialog}>
+        <DialogContent className="max-w-sm p-0 gap-0">
+          <DialogHeader className="px-4 py-3 border-b border-border">
+            <DialogTitle className="text-sm flex items-center gap-2">
+              <Settings className="w-4 h-4 text-indigo-500" />
+              부서별 월목표 설정
+            </DialogTitle>
+            <p className="text-[11px] text-muted-foreground mt-0.5">입력 즉시 연간목표 자동 계산 · 브라우저에 저장됨</p>
+          </DialogHeader>
+          <div className="divide-y divide-border max-h-[60vh] overflow-y-auto">
+            {/* 헤더 */}
+            <div className="grid grid-cols-3 px-4 py-1.5 bg-slate-50 dark:bg-slate-900/40 sticky top-0">
+              <span className="text-[10px] font-semibold text-muted-foreground">부서</span>
+              <span className="text-[10px] font-semibold text-muted-foreground text-center">월 목표 (건)</span>
+              <span className="text-[10px] font-semibold text-indigo-600 text-right">연간 (×12)</span>
+            </div>
+            {/* 팀 목록 (운용팀 + 현장경영팀) */}
+            {[...(teams || []).map(t => t.name), "현장경영팀"]
+              .filter((v, i, a) => a.indexOf(v) === i)
+              .map(name => {
+                const monthly = deptMonthlyTargets[name] || 0;
+                const annual = monthly * 12;
+                return (
+                  <div key={name} className="grid grid-cols-3 items-center px-4 py-2 gap-2 hover:bg-muted/30 transition-colors">
+                    <span className="text-xs font-medium text-foreground">{name}</span>
+                    <div className="flex justify-center">
+                      <input
+                        type="number"
+                        min={0}
+                        max={999}
+                        value={monthly || ""}
+                        placeholder="0"
+                        onChange={e => updateDeptMonthlyTarget(name, Number(e.target.value) || 0)}
+                        className="w-16 h-7 text-xs text-center border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-indigo-400 px-1"
+                      />
+                    </div>
+                    <div className="text-right">
+                      {annual > 0 ? (
+                        <span className="text-sm font-bold text-indigo-600">
+                          {annual}<span className="text-[10px] font-normal text-muted-foreground ml-0.5">건</span>
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            {/* 합계 행 */}
+            {Object.values(deptMonthlyTargets).some(v => v > 0) && (
+              <div className="grid grid-cols-3 items-center px-4 py-2.5 bg-indigo-50/70 dark:bg-indigo-950/20 sticky bottom-0 gap-2">
+                <span className="text-xs font-bold text-foreground">합계</span>
+                <div className="text-center">
+                  <span className="text-xs font-semibold text-foreground">
+                    {Object.values(deptMonthlyTargets).reduce((s, v) => s + v, 0)}건/월
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="text-sm font-bold text-indigo-700 dark:text-indigo-300">
+                    {Object.values(deptMonthlyTargets).reduce((s, v) => s + v * 12, 0)}
+                    <span className="text-[10px] font-normal text-muted-foreground ml-0.5">건/년</span>
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="px-4 py-3 border-t border-border flex justify-end">
+            <Button size="sm" onClick={() => setShowDeptTargetDialog(false)} className="h-8 text-xs">
+              확인
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
