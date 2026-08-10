@@ -2437,79 +2437,69 @@ export default function SafetyInspections() {
                       );
                     })()}
 
-                    {/* 팀별 뷰 — 히트맵 테이블 */}
+                    {/* 팀별 뷰 — 월별 스택 세로막대 */}
                     {monthChartMode === "팀별" && (() => {
+                      const TEAM_COLORS: Record<string, string> = {
+                        "동대구운용팀": "#6366f1",
+                        "포항운용팀":   "#8b5cf6",
+                        "안동운용팀":   "#ec4899",
+                        "서대구운용팀": "#f97316",
+                        "남대구운용팀": "#eab308",
+                        "구미운용팀":   "#22c55e",
+                        "문경운용팀":   "#14b8a6",
+                        "현장경영팀":   "#64748b",
+                      };
                       const activeTeams = TEAM_ORDER.filter(t =>
                         Object.values(uploadedInspStats.byMonthByTeam).some(m => m[t])
                       );
-                      const allVals = uploadedInspStats.sortedMonths.flatMap(([month]) =>
-                        activeTeams.map(t => uploadedInspStats.byMonthByTeam[month]?.[t] ?? 0)
-                      );
-                      const globalMax = Math.max(...allVals, 1);
-                      const abbr = (name: string) => name;
-                      const cellStyle = (v: number): { bg: string; fg: string } => {
-                        const r = v / globalMax;
-                        if (r === 0) return { bg: "transparent", fg: "#94a3b8" };
-                        if (r < 0.25) return { bg: `rgba(199,210,254,${0.4 + r * 2})`, fg: "#4338ca" };
-                        if (r < 0.55) return { bg: `rgba(99,102,241,${0.45 + r * 0.7})`, fg: "#fff" };
-                        return { bg: `rgba(55,48,163,${0.6 + r * 0.4})`, fg: "#fff" };
-                      };
+                      const chartData = uploadedInspStats.sortedMonths.map(([month, total]) => {
+                        const row: Record<string, string | number> = { month: `${parseInt(month.slice(5))}월`, total };
+                        activeTeams.forEach(t => { row[t] = uploadedInspStats.byMonthByTeam[month]?.[t] ?? 0; });
+                        return row;
+                      });
+                      const yMax = Math.max(...chartData.map(d => d.total as number), 1) * 1.18;
                       return (
-                        <div>
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-center border-collapse" style={{ minWidth: activeTeams.length * 54 + 52 }}>
-                              <thead>
-                                <tr className="border-b-2 border-indigo-100 dark:border-indigo-900/40">
-                                  <th className="py-2.5 px-3 text-left text-[10px] font-bold text-muted-foreground sticky left-0 bg-white dark:bg-slate-900 z-10 w-10">월</th>
-                                  {activeTeams.map(t => (
-                                    <th key={t} className="py-2.5 px-1 text-[10px] font-bold text-muted-foreground whitespace-nowrap">{abbr(t)}</th>
-                                  ))}
-                                  <th className="py-2.5 px-3 text-[10px] font-bold text-indigo-500 whitespace-nowrap">합계</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {uploadedInspStats.sortedMonths.map(([month, rowTotal]) => (
-                                  <tr key={month} className="border-b border-border/40 hover:bg-indigo-50/30 dark:hover:bg-indigo-950/10 transition-colors">
-                                    <td className="py-1 px-3 text-left text-[11px] font-bold text-foreground sticky left-0 bg-white dark:bg-slate-900 z-10">
-                                      {parseInt(month.slice(5))}월
-                                    </td>
-                                    {activeTeams.map(t => {
-                                      const v = uploadedInspStats.byMonthByTeam[month]?.[t] ?? 0;
-                                      const { bg, fg } = cellStyle(v);
-                                      return (
-                                        <td key={t} className="py-1 px-0.5">
-                                          <div className="mx-auto rounded-lg flex items-center justify-center font-bold transition-all duration-200"
-                                            style={{ background: bg, color: fg, width: 38, height: 30, fontSize: 12 }}>
-                                            {v > 0 ? v : <span style={{ color: "#e2e8f0", fontSize: 8 }}>·</span>}
-                                          </div>
-                                        </td>
-                                      );
-                                    })}
-                                    <td className="py-1 px-3 text-[12px] font-black text-indigo-600">{rowTotal}</td>
-                                  </tr>
-                                ))}
-                                <tr className="border-t-2 border-indigo-200 dark:border-indigo-800">
-                                  <td className="py-2 px-3 text-left text-[10px] font-bold text-muted-foreground sticky left-0 bg-indigo-50 dark:bg-indigo-950/20 z-10">합계</td>
-                                  {activeTeams.map(t => {
-                                    const tot = uploadedInspStats.sortedMonths.reduce((s,[m]) => s + (uploadedInspStats.byMonthByTeam[m]?.[t] ?? 0), 0);
-                                    return <td key={t} className="py-2 px-0.5 text-[12px] font-black text-indigo-600 bg-indigo-50 dark:bg-indigo-950/20">{tot || ""}</td>;
-                                  })}
-                                  <td className="py-2 px-3 text-[12px] font-black text-indigo-700 bg-indigo-50 dark:bg-indigo-950/20">{uploadedInspStats.total}</td>
-                                </tr>
-                              </tbody>
-                            </table>
-                          </div>
-                          <div className="flex items-center justify-end gap-1 px-3 py-2">
-                            <span className="text-[10px] text-muted-foreground mr-0.5">적음</span>
-                            {[0.15,0.35,0.55,0.75,0.95].map((r, i) => (
-                              <div key={i} className="w-4 h-4 rounded" style={{
-                                background: r < 0.25 ? `rgba(199,210,254,${0.4+r*2})`
-                                  : r < 0.55 ? `rgba(99,102,241,${0.45+r*0.7})`
-                                  : `rgba(55,48,163,${0.6+r*0.4})`
-                              }} />
-                            ))}
-                            <span className="text-[10px] text-muted-foreground ml-0.5">많음</span>
-                          </div>
+                        <div className="px-2 pt-4 pb-1">
+                          <ResponsiveContainer width="100%" height={260}>
+                            <BarChart data={chartData} margin={{ top: 18, right: 10, left: -10, bottom: 0 }} barCategoryGap="28%">
+                              <defs>
+                                {activeTeams.map(t => {
+                                  const base = TEAM_COLORS[t] ?? "#a5b4fc";
+                                  return (
+                                    <linearGradient key={t} id={`tg-${t}`} x1="0" y1="0" x2="0" y2="1">
+                                      <stop offset="0%" stopColor={base} stopOpacity={1} />
+                                      <stop offset="100%" stopColor={base} stopOpacity={0.65} />
+                                    </linearGradient>
+                                  );
+                                })}
+                              </defs>
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(148,163,184,0.15)" />
+                              <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#64748b", fontWeight: 600 }} axisLine={false} tickLine={false} />
+                              <YAxis domain={[0, yMax]} tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} allowDecimals={false} width={26} />
+                              <Tooltip
+                                cursor={{ fill: "rgba(99,102,241,0.05)", radius: 6 }}
+                                contentStyle={{ fontSize: 12, borderRadius: 10, border: "1px solid #e2e8f0", boxShadow: "0 8px 24px rgba(0,0,0,0.08)", padding: "8px 12px" }}
+                                formatter={(val: number, name: string) => val > 0 ? [val + "건", name] : ["", name]}
+                                labelStyle={{ fontWeight: 700, color: "#1e293b", marginBottom: 4 }}
+                              />
+                              <Legend
+                                wrapperStyle={{ fontSize: 10, paddingTop: 10, lineHeight: "20px" }}
+                                iconType="circle" iconSize={8}
+                              />
+                              {activeTeams.map((t, i) => (
+                                <Bar key={t} dataKey={t} stackId="s" name={t}
+                                  fill={`url(#tg-${t})`}
+                                  stroke={TEAM_COLORS[t] ?? "#a5b4fc"}
+                                  strokeWidth={0.5}
+                                  radius={i === activeTeams.length - 1 ? [5, 5, 0, 0] : [0, 0, 0, 0]}
+                                  isAnimationActive={true} animationDuration={600} animationEasing="ease-out">
+                                  <LabelList dataKey={t} position="inside"
+                                    style={{ fontSize: 9, fill: "#fff", fontWeight: 700 }}
+                                    formatter={(v: number) => v >= 3 ? v : ""} />
+                                </Bar>
+                              ))}
+                            </BarChart>
+                          </ResponsiveContainer>
                         </div>
                       );
                     })()}
