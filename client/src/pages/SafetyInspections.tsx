@@ -2305,7 +2305,7 @@ export default function SafetyInspections() {
                     const remaining = annualTarget > 0 ? Math.max(0, annualTarget - cnt) : 0;
                     const pct = annualTarget > 0 ? Math.round(cnt / annualTarget * 100) : null;
                     return {
-                      team: team.replace("운용팀","").replace("현장경영팀","현장경영"),
+                      team: team,
                       fullTeam: team,
                       점검건수: cnt,
                       잔여횟수: remaining,
@@ -2317,10 +2317,10 @@ export default function SafetyInspections() {
                   return (
                     <div className="px-2 pt-4 pb-2">
                       <ResponsiveContainer width="100%" height={chartHeight}>
-                        <BarChart data={chartData} layout="vertical" margin={{ top: 4, right: 60, left: 56, bottom: 4 }} barCategoryGap="28%">
+                        <BarChart data={chartData} layout="vertical" margin={{ top: 4, right: 60, left: 4, bottom: 4 }} barCategoryGap="28%">
                           <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="rgba(148,163,184,0.15)" />
                           <XAxis type="number" tick={{ fontSize: 11, fill: "#94a3b8" }} tickLine={false} axisLine={false} allowDecimals={false} />
-                          <YAxis type="category" dataKey="team" tick={{ fontSize: 12, fontWeight: 700, fill: "#475569" }} tickLine={false} axisLine={false} width={56} />
+                          <YAxis type="category" dataKey="team" tick={{ fontSize: 12, fontWeight: 700, fill: "#475569" }} tickLine={false} axisLine={false} width={72} />
                           <Tooltip
                             cursor={{ fill: "rgba(99,102,241,0.06)" }}
                             contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e2e8f0", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}
@@ -2462,7 +2462,7 @@ export default function SafetyInspections() {
                         activeTeams.map(t => uploadedInspStats.byMonthByTeam[month]?.[t] ?? 0)
                       );
                       const globalMax = Math.max(...allVals, 1);
-                      const abbr = (name: string) => name.replace("운용팀","").replace("현장경영팀","현장경영");
+                      const abbr = (name: string) => name;
                       const cellStyle = (v: number): { bg: string; fg: string } => {
                         const r = v / globalMax;
                         if (r === 0) return { bg: "transparent", fg: "#94a3b8" };
