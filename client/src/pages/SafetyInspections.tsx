@@ -1623,14 +1623,20 @@ export default function SafetyInspections() {
     });
   };
 
+  // ── 업로드 행 (annualProgressStats useMemo보다 먼저 선언) ──────────────────
+  interface UploadedInspRow { id: string; method: string; date: string; inspector: string; org: string; team: string; result: string; }
+  const [uploadedInspRows, setUploadedInspRows] = useState<UploadedInspRow[]>([]);
+
   // ── 12월까지 연간 목표 대비 진행률 (부서별 잔여 포함) ───────────────────────
   const annualProgressStats = useMemo(() => {
     if (!rawInspections || !teams) return null;
     const now = new Date();
     const currentYear = format(now, 'yyyy');
 
-    const yearInspections = rawInspections.filter(i => i.inspectionDate.startsWith(currentYear));
-    const doneThisYear = yearInspections.length;
+    // 전체 실적: 업로드 파일 우선, 없으면 DB 올해 데이터
+    const doneThisYear = uploadedInspRows.length > 0
+      ? uploadedInspRows.length
+      : rawInspections.filter(i => i.inspectionDate.startsWith(currentYear)).length;
 
     // 부서별 월목표 입력값 우선 사용, 없으면 전역 설정으로 균등 분배
     // 현장경영팀은 teams DB에 없을 수 있으므로 항상 포함
@@ -1665,14 +1671,23 @@ export default function SafetyInspections() {
     const weeksRemaining = Math.max(1, msRemaining / (7 * 24 * 60 * 60 * 1000));
     const monthsRemaining = Math.max(0.5, msRemaining / (30.44 * 24 * 60 * 60 * 1000));
 
-    // 부서별 집계
+    // 부서별 집계: 업로드 파일 우선, 없으면 DB 데이터
     const deptDone = new Map<string, number>();
     for (const dept of allDepts) deptDone.set(dept, 0);
-    for (const insp of yearInspections) {
-      const matchedDept = allDepts.find(d =>
-        insp.title.startsWith(d) || ((insp as any).department || '').startsWith(d)
-      );
-      if (matchedDept) deptDone.set(matchedDept, (deptDone.get(matchedDept) || 0) + 1);
+
+    if (uploadedInspRows.length > 0) {
+      for (const r of uploadedInspRows) {
+        const team = TEAM_MERGE[r.team] ?? r.team;
+        if (deptDone.has(team)) deptDone.set(team, (deptDone.get(team) || 0) + 1);
+      }
+    } else {
+      const yearInspections = rawInspections.filter(i => i.inspectionDate.startsWith(currentYear));
+      for (const insp of yearInspections) {
+        const matchedDept = allDepts.find(d =>
+          insp.title.startsWith(d) || ((insp as any).department || '').startsWith(d)
+        );
+        if (matchedDept) deptDone.set(matchedDept, (deptDone.get(matchedDept) || 0) + 1);
+      }
     }
 
     const deptStats = allDepts.map(dept => {
@@ -1699,7 +1714,7 @@ export default function SafetyInspections() {
       monthlyNeedTotal: totalRemaining > 0 ? totalRemaining / monthsRemaining : 0,
       deptStats, hasDeptTargets,
     };
-  }, [rawInspections, teams, inspectionTargets, deptMonthlyTargets]);
+  }, [rawInspections, teams, inspectionTargets, deptMonthlyTargets, uploadedInspRows]);
 
   const filteredInspections = useMemo(() => {
     if (!rawInspections) return [];
@@ -1730,8 +1745,6 @@ export default function SafetyInspections() {
   // ── 점검 진행율 탭: 업로드 파일 데이터 ─────────────────────────────────────
   const [uploadedFileName, setUploadedFileName] = useState<string>("");
   const uploadedInspFileRef = useRef<HTMLInputElement>(null);
-  interface UploadedInspRow { id: string; method: string; date: string; inspector: string; org: string; team: string; result: string; }
-  const [uploadedInspRows, setUploadedInspRows] = useState<UploadedInspRow[]>([]);
 
   const handleUploadedInspFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -2234,24 +2247,43 @@ export default function SafetyInspections() {
                 </div>
               </div>
 
-              {/* 팀별 현황 */}
+              {/* 팀별 현황 — 목표 대비 진행율 */}
               <div className="border border-border rounded-xl overflow-hidden">
-                <div className="bg-slate-50 dark:bg-slate-900/40 px-3 py-2 border-b border-border">
+                <div className="bg-slate-50 dark:bg-slate-900/40 px-3 py-2 border-b border-border flex items-center justify-between">
                   <p className="text-xs font-semibold text-foreground">팀별 점검 현황</p>
+                  <span className="text-[10px] text-muted-foreground">진행 / 연간목표</span>
                 </div>
                 <div className="divide-y divide-border">
-                  {uploadedInspStats.sortedTeams.map(([team, cnt]) => (
-                    <div key={team} className="flex items-center gap-2 px-3 py-1.5">
-                      <span className="text-xs font-medium text-foreground w-28 shrink-0 truncate">{team}</span>
-                      <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                        <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${(cnt / uploadedInspStats.maxTeam) * 100}%` }} />
+                  {uploadedInspStats.sortedTeams.map(([team, cnt]) => {
+                    const annualTarget = (deptMonthlyTargets[team] || 0) * 12;
+                    const pct = annualTarget > 0 ? Math.min(100, Math.round(cnt / annualTarget * 100)) : null;
+                    const barWidth = annualTarget > 0
+                      ? Math.min(100, (cnt / annualTarget) * 100)
+                      : (cnt / uploadedInspStats.maxTeam) * 100;
+                    const barColor = pct === null ? "bg-indigo-400"
+                      : pct >= 100 ? "bg-emerald-500"
+                      : pct >= 70 ? "bg-indigo-500"
+                      : "bg-orange-400";
+                    return (
+                      <div key={team} className="flex items-center gap-2 px-3 py-1.5">
+                        <span className="text-xs font-medium text-foreground w-24 shrink-0 truncate">{team}</span>
+                        <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                          <div className={`h-full ${barColor} rounded-full transition-all`} style={{ width: `${barWidth}%` }} />
+                        </div>
+                        <span className="text-xs font-bold text-indigo-600 w-16 text-right shrink-0">
+                          {cnt}{annualTarget > 0 ? `/${annualTarget}` : ""}
+                        </span>
+                        <span className={`text-[10px] font-semibold w-10 text-right shrink-0 ${
+                          pct === null ? "text-muted-foreground"
+                          : pct >= 100 ? "text-emerald-600"
+                          : pct >= 70 ? "text-indigo-600"
+                          : "text-orange-500"
+                        }`}>
+                          {pct !== null ? `${pct}%` : "-"}
+                        </span>
                       </div>
-                      <span className="text-xs font-bold text-indigo-600 w-8 text-right shrink-0">{cnt}</span>
-                      <span className="text-[10px] text-muted-foreground w-10 text-right shrink-0">
-                        {Math.round(cnt / uploadedInspStats.total * 100)}%
-                      </span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
