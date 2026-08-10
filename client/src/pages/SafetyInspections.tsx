@@ -2343,19 +2343,19 @@ export default function SafetyInspections() {
               <thead>
                 <tr>
                   <th className="text-left py-1.5 px-2 font-semibold text-muted-foreground bg-indigo-50/80 dark:bg-indigo-950/30 rounded-tl-lg">부서</th>
-                  <th className="text-center py-1.5 px-2 font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50/80 dark:bg-indigo-950/30">진행</th>
                   <th className="text-center py-1.5 px-2 font-semibold text-muted-foreground bg-indigo-50/80 dark:bg-indigo-950/30">목표</th>
+                  <th className="text-center py-1.5 px-2 font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50/80 dark:bg-indigo-950/30">진행</th>
                   <th className="text-center py-1.5 px-2 font-semibold text-muted-foreground bg-indigo-50/80 dark:bg-indigo-950/30">잔여</th>
-                  <th className="text-center py-1.5 px-2 font-semibold text-orange-600 bg-indigo-50/80 dark:bg-indigo-950/30">주당 필요</th>
-                  <th className="text-center py-1.5 px-2 font-semibold text-orange-600 bg-indigo-50/80 dark:bg-indigo-950/30 rounded-tr-lg">월당 필요</th>
+                  <th className="text-center py-1.5 px-2 font-semibold text-orange-600 bg-indigo-50/80 dark:bg-indigo-950/30">월당 필요</th>
+                  <th className="text-center py-1.5 px-2 font-semibold text-orange-600 bg-indigo-50/80 dark:bg-indigo-950/30 rounded-tr-lg">주당 필요</th>
                 </tr>
               </thead>
               <tbody>
                 {annualProgressStats.deptStats.map(({ dept, done, target, remaining, weeklyNeed, monthlyNeed }) => (
                   <tr key={dept} className="border-b border-indigo-50 dark:border-indigo-900/20 hover:bg-indigo-50/40 dark:hover:bg-indigo-950/20 transition-colors">
                     <td className="py-1.5 px-2 font-medium text-foreground whitespace-nowrap">{dept}</td>
-                    <td className="text-center py-1.5 px-2 font-bold text-indigo-600">{done}</td>
                     <td className="text-center py-1.5 px-2 text-muted-foreground">{target}</td>
+                    <td className="text-center py-1.5 px-2 font-bold text-indigo-600">{done}</td>
                     <td className={`text-center py-1.5 px-2 font-semibold ${
                       remaining === 0 ? 'text-emerald-600' :
                       remaining <= 10 ? 'text-blue-600' : 'text-orange-600'
@@ -2363,10 +2363,10 @@ export default function SafetyInspections() {
                       {remaining === 0 ? '✓' : remaining}
                     </td>
                     <td className="text-center py-1.5 px-2 text-orange-600 font-medium">
-                      {remaining === 0 ? <span className="text-emerald-600">-</span> : weeklyNeed.toFixed(1)}
+                      {remaining === 0 ? <span className="text-emerald-600">-</span> : monthlyNeed.toFixed(1)}
                     </td>
                     <td className="text-center py-1.5 px-2 text-orange-600 font-medium">
-                      {remaining === 0 ? <span className="text-emerald-600">-</span> : monthlyNeed.toFixed(1)}
+                      {remaining === 0 ? <span className="text-emerald-600">-</span> : weeklyNeed.toFixed(1)}
                     </td>
                   </tr>
                 ))}
