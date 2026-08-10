@@ -1609,6 +1609,67 @@ export default function SafetyInspections() {
     };
   }, [rawInspections, teams, inspectionTargets, dashboardPeriod, selectedMonth, selectedWeekStart, weekEndDate, customStart, customEnd]);
 
+  // ── 12월까지 연간 목표 대비 진행률 (부서별 잔여 포함) ───────────────────────
+  const annualProgressStats = useMemo(() => {
+    if (!rawInspections || !teams) return null;
+    const now = new Date();
+    const currentYear = format(now, 'yyyy');
+
+    const yearInspections = rawInspections.filter(i => i.inspectionDate.startsWith(currentYear));
+    const doneThisYear = yearInspections.length;
+
+    const numDepts = teams.length || 1;
+    const monthlyBase = (inspectionTargets?.safetyBujang || 0) + (inspectionTargets?.safetyTeamjang || 0)
+                      + (inspectionTargets?.accompanyBujang || 0) + (inspectionTargets?.accompanyTeamjang || 0);
+    const annualTarget = (inspectionTargets?.totalTarget && inspectionTargets.totalTarget > 0)
+      ? inspectionTargets.totalTarget
+      : monthlyBase * 12;
+    if (annualTarget <= 0) return null;
+
+    const annualPerDept = annualTarget / numDepts;
+
+    // 12월 31일까지 남은 기간
+    const yearEnd = new Date(now.getFullYear(), 11, 31);
+    const msRemaining = Math.max(0, yearEnd.getTime() - now.getTime());
+    const weeksRemaining = Math.max(1, msRemaining / (7 * 24 * 60 * 60 * 1000));
+    const monthsRemaining = Math.max(0.5, msRemaining / (30.44 * 24 * 60 * 60 * 1000));
+
+    // 부서별 집계
+    const allDepts = teams.map(t => t.name);
+    const deptDone = new Map<string, number>();
+    for (const dept of allDepts) deptDone.set(dept, 0);
+    for (const insp of yearInspections) {
+      const matchedDept = allDepts.find(d =>
+        insp.title.startsWith(d) || ((insp as any).department || '').startsWith(d)
+      );
+      if (matchedDept) deptDone.set(matchedDept, (deptDone.get(matchedDept) || 0) + 1);
+    }
+
+    const deptStats = allDepts.map(dept => {
+      const done = deptDone.get(dept) || 0;
+      const target = Math.round(annualPerDept);
+      const remaining = Math.max(0, target - done);
+      const weeklyNeed = remaining > 0 ? remaining / weeksRemaining : 0;
+      const monthlyNeed = remaining > 0 ? remaining / monthsRemaining : 0;
+      return {
+        dept: dept.replace('운용팀', '').replace('팀', ''),
+        done, target, remaining, weeklyNeed, monthlyNeed,
+      };
+    }).sort((a, b) => b.done - a.done);
+
+    const totalRemaining = Math.max(0, annualTarget - doneThisYear);
+    const pct = Math.min(100, Math.round(doneThisYear / annualTarget * 100));
+
+    return {
+      doneThisYear, annualTarget, totalRemaining, pct,
+      weeksRemaining: Math.ceil(weeksRemaining),
+      monthsRemaining: Math.ceil(monthsRemaining),
+      weeklyNeedTotal: totalRemaining > 0 ? totalRemaining / weeksRemaining : 0,
+      monthlyNeedTotal: totalRemaining > 0 ? totalRemaining / monthsRemaining : 0,
+      deptStats,
+    };
+  }, [rawInspections, teams, inspectionTargets]);
+
   const filteredInspections = useMemo(() => {
     if (!rawInspections) return [];
     const currentYear = format(new Date(), "yyyy");
@@ -1997,6 +2058,98 @@ export default function SafetyInspections() {
                       </ResponsiveContainer>
                     </div>
                   </div>
+
+                  {/* 12월까지 연간 목표 대비 진행률 + 부서별 잔여 */}
+                  {annualProgressStats && (
+                    <div className="border border-indigo-100 dark:border-indigo-900/30 rounded-xl p-3 space-y-3 bg-gradient-to-br from-indigo-50/60 to-blue-50/30 dark:from-indigo-950/20 dark:to-blue-950/10">
+                      {/* 헤더 */}
+                      <div className="flex items-center justify-between flex-wrap gap-1">
+                        <p className="text-xs font-semibold text-indigo-700 dark:text-indigo-300 flex items-center gap-1.5">
+                          <Calendar className="w-3.5 h-3.5" />
+                          12월까지 연간 목표 대비 진행률
+                        </p>
+                        <span className="text-[11px] text-muted-foreground">
+                          남은 기간 약 <span className="font-semibold text-foreground">{annualProgressStats.weeksRemaining}주</span>
+                          {' / '}
+                          <span className="font-semibold text-foreground">{annualProgressStats.monthsRemaining}개월</span>
+                        </span>
+                      </div>
+
+                      {/* 전체 진행 게이지 */}
+                      <div>
+                        <div className="flex items-end justify-between mb-1">
+                          <div className="flex items-baseline gap-1">
+                            <span className="text-2xl font-black text-indigo-700 dark:text-indigo-300">
+                              {annualProgressStats.doneThisYear}
+                            </span>
+                            <span className="text-xs text-muted-foreground font-semibold">
+                              / {annualProgressStats.annualTarget}건
+                            </span>
+                          </div>
+                          <span className={`text-sm font-bold ${
+                            annualProgressStats.pct >= 100 ? 'text-emerald-600' :
+                            annualProgressStats.pct >= 70 ? 'text-blue-600' : 'text-orange-500'
+                          }`}>
+                            {annualProgressStats.pct}% 달성
+                          </span>
+                        </div>
+                        <div className="h-3 w-full bg-indigo-100 dark:bg-indigo-900/40 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all ${
+                              annualProgressStats.pct >= 100 ? 'bg-emerald-500' :
+                              annualProgressStats.pct >= 70 ? 'bg-indigo-500' : 'bg-orange-400'
+                            }`}
+                            style={{ width: `${annualProgressStats.pct}%` }}
+                          />
+                        </div>
+                        <div className="flex justify-between mt-1 text-[11px] text-muted-foreground">
+                          <span>잔여 <span className="font-semibold text-foreground">{annualProgressStats.totalRemaining}건</span></span>
+                          <span>
+                            주당 <span className="font-semibold text-orange-600">{annualProgressStats.weeklyNeedTotal.toFixed(1)}건</span>
+                            {' · '}
+                            월당 <span className="font-semibold text-orange-600">{annualProgressStats.monthlyNeedTotal.toFixed(1)}건</span> 필요
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* 부서별 잔여 테이블 */}
+                      <div className="overflow-x-auto -mx-1">
+                        <table className="w-full text-xs border-separate border-spacing-0">
+                          <thead>
+                            <tr>
+                              <th className="text-left py-1.5 px-2 font-semibold text-muted-foreground bg-indigo-50/80 dark:bg-indigo-950/30 rounded-tl-lg">부서</th>
+                              <th className="text-center py-1.5 px-2 font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50/80 dark:bg-indigo-950/30">진행</th>
+                              <th className="text-center py-1.5 px-2 font-semibold text-muted-foreground bg-indigo-50/80 dark:bg-indigo-950/30">목표</th>
+                              <th className="text-center py-1.5 px-2 font-semibold text-muted-foreground bg-indigo-50/80 dark:bg-indigo-950/30">잔여</th>
+                              <th className="text-center py-1.5 px-2 font-semibold text-orange-600 bg-indigo-50/80 dark:bg-indigo-950/30">주당 필요</th>
+                              <th className="text-center py-1.5 px-2 font-semibold text-orange-600 bg-indigo-50/80 dark:bg-indigo-950/30 rounded-tr-lg">월당 필요</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {annualProgressStats.deptStats.map(({ dept, done, target, remaining, weeklyNeed, monthlyNeed }) => (
+                              <tr key={dept} className="border-b border-indigo-50 dark:border-indigo-900/20 hover:bg-indigo-50/40 dark:hover:bg-indigo-950/20 transition-colors">
+                                <td className="py-1.5 px-2 font-medium text-foreground whitespace-nowrap">{dept}</td>
+                                <td className="text-center py-1.5 px-2 font-bold text-indigo-600">{done}</td>
+                                <td className="text-center py-1.5 px-2 text-muted-foreground">{target}</td>
+                                <td className={`text-center py-1.5 px-2 font-semibold ${
+                                  remaining === 0 ? 'text-emerald-600' :
+                                  remaining <= 10 ? 'text-blue-600' : 'text-orange-600'
+                                }`}>
+                                  {remaining === 0 ? '✓' : remaining}
+                                </td>
+                                <td className="text-center py-1.5 px-2 text-orange-600 font-medium">
+                                  {remaining === 0 ? <span className="text-emerald-600">-</span> : weeklyNeed.toFixed(1)}
+                                </td>
+                                <td className="text-center py-1.5 px-2 text-orange-600 font-medium">
+                                  {remaining === 0 ? <span className="text-emerald-600">-</span> : monthlyNeed.toFixed(1)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </motion.div>
             )}
