@@ -1627,6 +1627,24 @@ export default function SafetyInspections() {
   interface UploadedInspRow { id: string; method: string; date: string; inspector: string; org: string; team: string; result: string; }
   const [uploadedInspRows, setUploadedInspRows] = useState<UploadedInspRow[]>([]);
 
+  const TEAM_MERGE: Record<string, string> = {
+    "대구본부": "현장경영팀",
+    "동대구운용부": "현장경영팀",
+    "서대구운용부": "현장경영팀",
+  };
+  const normalizeUploadTeam = (team: string) => TEAM_MERGE[team] ?? team;
+
+  // ISO 주차 키 반환 ("YYYY-WNN")
+  const getISOWeekKey = (dateStr: string): string => {
+    const d = new Date(dateStr.slice(0, 10));
+    if (isNaN(d.getTime())) return "";
+    const day = (d.getDay() + 6) % 7; // Mon=0
+    const thu = new Date(d); thu.setDate(d.getDate() - day + 3);
+    const firstThu = new Date(thu.getFullYear(), 0, 4);
+    const wn = 1 + Math.round((thu.getTime() - firstThu.getTime()) / 604800000);
+    return `${thu.getFullYear()}-W${String(wn).padStart(2, "0")}`;
+  };
+
   // ── 12월까지 연간 목표 대비 진행률 (부서별 잔여 포함) ───────────────────────
   const annualProgressStats = useMemo(() => {
     if (!rawInspections || !teams) return null;
@@ -1780,32 +1798,33 @@ export default function SafetyInspections() {
   };
 
   // 대구본부·동대구운용부·서대구운용부 → 현장경영팀으로 합산
-  const TEAM_MERGE: Record<string, string> = {
-    "대구본부": "현장경영팀",
-    "동대구운용부": "현장경영팀",
-    "서대구운용부": "현장경영팀",
-  };
-  const normalizeUploadTeam = (team: string) => TEAM_MERGE[team] ?? team;
-
   const uploadedInspStats = useMemo(() => {
     if (!uploadedInspRows.length) return null;
     const byTeam: Record<string, number> = {};
     const byMonth: Record<string, number> = {};
+    const byWeek: Record<string, number> = {};
     const byResult: Record<string, number> = {};
     for (const r of uploadedInspRows) {
       const team = normalizeUploadTeam(r.team);
       byTeam[team] = (byTeam[team] || 0) + 1;
       const month = r.date.slice(0, 7);
       if (month) byMonth[month] = (byMonth[month] || 0) + 1;
+      const wk = getISOWeekKey(r.date);
+      if (wk) byWeek[wk] = (byWeek[wk] || 0) + 1;
       const res = r.result || "미기재";
       byResult[res] = (byResult[res] || 0) + 1;
     }
-    const sortedMonths = Object.entries(byMonth).sort((a, b) => a[0].localeCompare(b[0])); // 오름차순(그래프용)
-    const sortedTeams = Object.entries(byTeam).sort((a, b) => b[1] - a[1]);
-    const maxTeam = Math.max(...Object.values(byTeam));
+    const sortedMonths = Object.entries(byMonth).sort((a, b) => a[0].localeCompare(b[0]));
+    const sortedWeeks  = Object.entries(byWeek).sort((a, b) => a[0].localeCompare(b[0]));
+    const sortedTeams  = Object.entries(byTeam).sort((a, b) => b[1] - a[1]);
+    const maxTeam  = Math.max(...Object.values(byTeam));
     const maxMonth = Math.max(...Object.values(byMonth));
-    return { total: uploadedInspRows.length, byTeam, byMonth, byResult, sortedMonths, sortedTeams, maxTeam, maxMonth };
-  }, [uploadedInspRows]);
+    const maxWeek  = sortedWeeks.length ? Math.max(...Object.values(byWeek)) : 1;
+    // 주간 목표: 총 월목표 합계 / 4.33
+    const totalMonthly = Object.values(deptMonthlyTargets).reduce((s, v) => s + v, 0);
+    const weeklyTargetTotal = totalMonthly > 0 ? Math.round(totalMonthly / 4.33) : 0;
+    return { total: uploadedInspRows.length, byTeam, byMonth, byWeek, byResult, sortedMonths, sortedWeeks, sortedTeams, maxTeam, maxMonth, maxWeek, weeklyTargetTotal };
+  }, [uploadedInspRows, deptMonthlyTargets]);
 
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [isSendingBulkEmail, setIsSendingBulkEmail] = useState(false);
@@ -2310,6 +2329,52 @@ export default function SafetyInspections() {
                   ))}
                 </div>
               </div>
+
+              {/* 주별 현황 — 월목표 설정 시 목표 대비 표시 */}
+              {uploadedInspStats.sortedWeeks.length > 0 && (
+                <div className="border border-border rounded-xl overflow-hidden">
+                  <div className="bg-slate-50 dark:bg-slate-900/40 px-3 py-2 border-b border-border flex items-center justify-between">
+                    <p className="text-xs font-semibold text-foreground">주별 점검 현황</p>
+                    {uploadedInspStats.weeklyTargetTotal > 0 && (
+                      <span className="text-[10px] text-muted-foreground">주간 목표 {uploadedInspStats.weeklyTargetTotal}건</span>
+                    )}
+                  </div>
+                  <div className="divide-y divide-border">
+                    {uploadedInspStats.sortedWeeks.map(([wk, cnt]) => {
+                      const wt = uploadedInspStats.weeklyTargetTotal;
+                      const pct = wt > 0 ? Math.round(cnt / wt * 100) : null;
+                      const barWidth = wt > 0
+                        ? Math.min(100, (cnt / wt) * 100)
+                        : (cnt / uploadedInspStats.maxWeek) * 100;
+                      const barColor = pct === null ? "bg-violet-400"
+                        : pct >= 100 ? "bg-emerald-500"
+                        : pct >= 70 ? "bg-violet-500"
+                        : "bg-orange-400";
+                      // "YYYY-Wnn" → "nn주차"
+                      const weekLabel = wk.split("-W")[1] ? `${parseInt(wk.split("-W")[1])}주차` : wk;
+                      return (
+                        <div key={wk} className="flex items-center gap-2 px-3 py-1.5">
+                          <span className="text-xs font-medium text-foreground w-14 shrink-0">{weekLabel}</span>
+                          <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                            <div className={`h-full ${barColor} rounded-full transition-all`} style={{ width: `${barWidth}%` }} />
+                          </div>
+                          <span className="text-xs font-bold text-violet-600 w-16 text-right shrink-0">
+                            {cnt}{wt > 0 ? `/${wt}` : ""}
+                          </span>
+                          <span className={`text-[10px] font-semibold w-10 text-right shrink-0 ${
+                            pct === null ? "text-muted-foreground"
+                            : pct >= 100 ? "text-emerald-600"
+                            : pct >= 70 ? "text-violet-600"
+                            : "text-orange-500"
+                          }`}>
+                            {pct !== null ? `${pct}%` : `${Math.round(cnt / uploadedInspStats.maxWeek * 100)}%`}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
