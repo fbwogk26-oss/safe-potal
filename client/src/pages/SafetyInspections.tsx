@@ -1,4 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
+import * as XLSX from "xlsx";
 import { useHeadquarters } from "@/contexts/HeadquartersContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1695,6 +1696,67 @@ export default function SafetyInspections() {
   const [showInspDashboard, setShowInspDashboard] = useState(true);
 
   const [activeTab, setActiveTab] = useState<"자체" | "진행율">("자체");
+
+  // ── 점검 진행율 탭: 업로드 파일 데이터 ─────────────────────────────────────
+  const [uploadedFileName, setUploadedFileName] = useState<string>("");
+  const uploadedInspFileRef = useRef<HTMLInputElement>(null);
+  interface UploadedInspRow { id: string; method: string; date: string; inspector: string; org: string; team: string; result: string; }
+  const [uploadedInspRows, setUploadedInspRows] = useState<UploadedInspRow[]>([]);
+
+  const handleUploadedInspFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadedFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const data = new Uint8Array(ev.target?.result as ArrayBuffer);
+      const wb = XLSX.read(data, { type: "array" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const raw: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1 });
+      // 헤더 제거 후 파싱 (컬럼: 0=ID,3=방법,4=일시,5=점검자,6=수행조직,21=결과)
+      const rows: UploadedInspRow[] = raw.slice(1)
+        .filter(r => r[4])  // 날짜 있는 행만
+        .map(r => {
+          const org = String(r[6] || "");
+          const team = org.includes(">") ? org.split(">").pop()!.trim() : org.trim();
+          return {
+            id: String(r[0] || ""),
+            method: String(r[3] || ""),
+            date: String(r[4] || ""),
+            inspector: String(r[5] || ""),
+            org,
+            team,
+            result: String(r[21] || ""),
+          };
+        })
+        .filter(r => r.team);
+      setUploadedInspRows(rows);
+    };
+    reader.readAsArrayBuffer(file);
+    e.target.value = "";
+  };
+
+  const uploadedInspStats = useMemo(() => {
+    if (!uploadedInspRows.length) return null;
+    const byTeam: Record<string, number> = {};
+    const byMonth: Record<string, number> = {};
+    const byInspector: Record<string, number> = {};
+    const byResult: Record<string, number> = {};
+    for (const r of uploadedInspRows) {
+      byTeam[r.team] = (byTeam[r.team] || 0) + 1;
+      const month = r.date.slice(0, 7);
+      if (month) byMonth[month] = (byMonth[month] || 0) + 1;
+      if (r.inspector) byInspector[r.inspector] = (byInspector[r.inspector] || 0) + 1;
+      const res = r.result || "미기재";
+      byResult[res] = (byResult[res] || 0) + 1;
+    }
+    const sortedMonths = Object.entries(byMonth).sort((a, b) => b[0].localeCompare(a[0]));
+    const sortedTeams = Object.entries(byTeam).sort((a, b) => b[1] - a[1]);
+    const sortedInspectors = Object.entries(byInspector).sort((a, b) => b[1] - a[1]);
+    const maxTeam = Math.max(...Object.values(byTeam));
+    return { total: uploadedInspRows.length, byTeam, byMonth, byInspector, byResult, sortedMonths, sortedTeams, sortedInspectors, maxTeam };
+  }, [uploadedInspRows]);
+
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [isSendingBulkEmail, setIsSendingBulkEmail] = useState(false);
   const pendingSendEmail = useRef(false);
@@ -2075,7 +2137,104 @@ export default function SafetyInspections() {
         </Card>
       )}
 
-      {/* ── 점검 진행율 탭: 연간 목표 대비 진행률 ── */}
+      {/* ── 점검 진행율 탭 ── */}
+      {activeTab === "진행율" && (
+        <div className="space-y-4">
+          {/* 파일 업로드 영역 */}
+          <div className="border border-dashed border-indigo-300 dark:border-indigo-700 rounded-xl p-4 flex items-center justify-between gap-3 bg-indigo-50/40 dark:bg-indigo-950/20">
+            <div className="flex items-center gap-2 min-w-0">
+              <FileText className="w-4 h-4 text-indigo-500 shrink-0" />
+              {uploadedFileName ? (
+                <span className="text-xs font-medium text-foreground truncate">{uploadedFileName}</span>
+              ) : (
+                <span className="text-xs text-muted-foreground">xlsx / xls 파일을 업로드하면 팀별·월별 진행율을 분석합니다</span>
+              )}
+            </div>
+            <Button size="sm" variant="outline" className="h-7 text-xs shrink-0 gap-1 border-indigo-300 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-700 dark:text-indigo-400"
+              onClick={() => uploadedInspFileRef.current?.click()}>
+              <Upload className="w-3.5 h-3.5" />
+              {uploadedFileName ? "파일 변경" : "파일 업로드"}
+            </Button>
+            <input ref={uploadedInspFileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleUploadedInspFile} />
+          </div>
+
+          {/* 업로드된 데이터 통계 */}
+          {uploadedInspStats && (
+            <div className="space-y-3">
+              {/* 요약 카드 */}
+              <div className="grid grid-cols-3 gap-2">
+                <div className="bg-indigo-50 dark:bg-indigo-950/30 rounded-lg p-3 text-center">
+                  <p className="text-2xl font-black text-indigo-700 dark:text-indigo-300">{uploadedInspStats.total}</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">총 점검</p>
+                </div>
+                <div className="bg-emerald-50 dark:bg-emerald-950/30 rounded-lg p-3 text-center">
+                  <p className="text-2xl font-black text-emerald-700 dark:text-emerald-300">{uploadedInspStats.byResult["양호"] || 0}</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">양호</p>
+                </div>
+                <div className="bg-orange-50 dark:bg-orange-950/30 rounded-lg p-3 text-center">
+                  <p className="text-2xl font-black text-orange-600">{uploadedInspStats.byResult["미흡"] || 0}</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">미흡</p>
+                </div>
+              </div>
+
+              {/* 팀별 현황 */}
+              <div className="border border-border rounded-xl overflow-hidden">
+                <div className="bg-slate-50 dark:bg-slate-900/40 px-3 py-2 border-b border-border">
+                  <p className="text-xs font-semibold text-foreground">팀별 점검 현황</p>
+                </div>
+                <div className="divide-y divide-border">
+                  {uploadedInspStats.sortedTeams.map(([team, cnt]) => (
+                    <div key={team} className="flex items-center gap-2 px-3 py-1.5">
+                      <span className="text-xs font-medium text-foreground w-28 shrink-0 truncate">{team}</span>
+                      <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                        <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${(cnt / uploadedInspStats.maxTeam) * 100}%` }} />
+                      </div>
+                      <span className="text-xs font-bold text-indigo-600 w-8 text-right shrink-0">{cnt}</span>
+                      <span className="text-[10px] text-muted-foreground w-10 text-right shrink-0">
+                        {Math.round(cnt / uploadedInspStats.total * 100)}%
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* 월별 현황 */}
+              <div className="border border-border rounded-xl overflow-hidden">
+                <div className="bg-slate-50 dark:bg-slate-900/40 px-3 py-2 border-b border-border">
+                  <p className="text-xs font-semibold text-foreground">월별 점검 현황</p>
+                </div>
+                <div className="p-3 grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {uploadedInspStats.sortedMonths.map(([month, cnt]) => (
+                    <div key={month} className="flex items-center justify-between bg-blue-50/60 dark:bg-blue-950/20 rounded-lg px-2.5 py-1.5">
+                      <span className="text-xs font-medium text-foreground">{month}</span>
+                      <span className="text-sm font-bold text-blue-700 dark:text-blue-400">{cnt}건</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* 점검자별 현황 */}
+              <div className="border border-border rounded-xl overflow-hidden">
+                <div className="bg-slate-50 dark:bg-slate-900/40 px-3 py-2 border-b border-border">
+                  <p className="text-xs font-semibold text-foreground">점검자별 현황</p>
+                </div>
+                <div className="p-3">
+                  <div className="flex flex-wrap gap-1.5">
+                    {uploadedInspStats.sortedInspectors.map(([name, cnt]) => (
+                      <span key={name} className="inline-flex items-center gap-1 text-xs bg-slate-100 dark:bg-slate-800 rounded-full px-2 py-0.5">
+                        <span className="font-medium">{name}</span>
+                        <span className="text-indigo-600 font-bold">{cnt}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── 기존 연간 목표 대비 (파일 업로드 없을 때도 항상 표시) ── */}
       {activeTab === "진행율" && annualProgressStats && (
         <div className="border border-indigo-100 dark:border-indigo-900/30 rounded-xl p-3 space-y-3 bg-gradient-to-br from-indigo-50/60 to-blue-50/30 dark:from-indigo-950/20 dark:to-blue-950/10">
           {/* 헤더 */}
