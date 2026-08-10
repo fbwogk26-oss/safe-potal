@@ -1766,25 +1766,32 @@ export default function SafetyInspections() {
     e.target.value = "";
   };
 
+  // 대구본부·동대구운용부·서대구운용부 → 현장경영팀으로 합산
+  const TEAM_MERGE: Record<string, string> = {
+    "대구본부": "현장경영팀",
+    "동대구운용부": "현장경영팀",
+    "서대구운용부": "현장경영팀",
+  };
+  const normalizeUploadTeam = (team: string) => TEAM_MERGE[team] ?? team;
+
   const uploadedInspStats = useMemo(() => {
     if (!uploadedInspRows.length) return null;
     const byTeam: Record<string, number> = {};
     const byMonth: Record<string, number> = {};
-    const byInspector: Record<string, number> = {};
     const byResult: Record<string, number> = {};
     for (const r of uploadedInspRows) {
-      byTeam[r.team] = (byTeam[r.team] || 0) + 1;
+      const team = normalizeUploadTeam(r.team);
+      byTeam[team] = (byTeam[team] || 0) + 1;
       const month = r.date.slice(0, 7);
       if (month) byMonth[month] = (byMonth[month] || 0) + 1;
-      if (r.inspector) byInspector[r.inspector] = (byInspector[r.inspector] || 0) + 1;
       const res = r.result || "미기재";
       byResult[res] = (byResult[res] || 0) + 1;
     }
-    const sortedMonths = Object.entries(byMonth).sort((a, b) => b[0].localeCompare(a[0]));
+    const sortedMonths = Object.entries(byMonth).sort((a, b) => a[0].localeCompare(b[0])); // 오름차순(그래프용)
     const sortedTeams = Object.entries(byTeam).sort((a, b) => b[1] - a[1]);
-    const sortedInspectors = Object.entries(byInspector).sort((a, b) => b[1] - a[1]);
     const maxTeam = Math.max(...Object.values(byTeam));
-    return { total: uploadedInspRows.length, byTeam, byMonth, byInspector, byResult, sortedMonths, sortedTeams, sortedInspectors, maxTeam };
+    const maxMonth = Math.max(...Object.values(byMonth));
+    return { total: uploadedInspRows.length, byTeam, byMonth, byResult, sortedMonths, sortedTeams, maxTeam, maxMonth };
   }, [uploadedInspRows]);
 
   const [isSendingEmail, setIsSendingEmail] = useState(false);
@@ -2248,35 +2255,27 @@ export default function SafetyInspections() {
                 </div>
               </div>
 
-              {/* 월별 현황 */}
+              {/* 월별 현황 — 가로 막대 그래프 */}
               <div className="border border-border rounded-xl overflow-hidden">
                 <div className="bg-slate-50 dark:bg-slate-900/40 px-3 py-2 border-b border-border">
                   <p className="text-xs font-semibold text-foreground">월별 점검 현황</p>
                 </div>
-                <div className="p-3 grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <div className="divide-y divide-border">
                   {uploadedInspStats.sortedMonths.map(([month, cnt]) => (
-                    <div key={month} className="flex items-center justify-between bg-blue-50/60 dark:bg-blue-950/20 rounded-lg px-2.5 py-1.5">
-                      <span className="text-xs font-medium text-foreground">{month}</span>
-                      <span className="text-sm font-bold text-blue-700 dark:text-blue-400">{cnt}건</span>
+                    <div key={month} className="flex items-center gap-2 px-3 py-1.5">
+                      <span className="text-xs font-medium text-foreground w-16 shrink-0">{month.slice(5)}월</span>
+                      <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-blue-500 rounded-full transition-all"
+                          style={{ width: `${(cnt / uploadedInspStats.maxMonth) * 100}%` }}
+                        />
+                      </div>
+                      <span className="text-xs font-bold text-blue-600 w-8 text-right shrink-0">{cnt}</span>
+                      <span className="text-[10px] text-muted-foreground w-10 text-right shrink-0">
+                        {Math.round(cnt / uploadedInspStats.total * 100)}%
+                      </span>
                     </div>
                   ))}
-                </div>
-              </div>
-
-              {/* 점검자별 현황 */}
-              <div className="border border-border rounded-xl overflow-hidden">
-                <div className="bg-slate-50 dark:bg-slate-900/40 px-3 py-2 border-b border-border">
-                  <p className="text-xs font-semibold text-foreground">점검자별 현황</p>
-                </div>
-                <div className="p-3">
-                  <div className="flex flex-wrap gap-1.5">
-                    {uploadedInspStats.sortedInspectors.map(([name, cnt]) => (
-                      <span key={name} className="inline-flex items-center gap-1 text-xs bg-slate-100 dark:bg-slate-800 rounded-full px-2 py-0.5">
-                        <span className="font-medium">{name}</span>
-                        <span className="text-indigo-600 font-bold">{cnt}</span>
-                      </span>
-                    ))}
-                  </div>
                 </div>
               </div>
             </div>
