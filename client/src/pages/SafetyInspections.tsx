@@ -1759,6 +1759,7 @@ export default function SafetyInspections() {
   const [showInspDashboard, setShowInspDashboard] = useState(true);
 
   const [activeTab, setActiveTab] = useState<"자체" | "진행율">("자체");
+  const [chartView, setChartView] = useState<"팀별" | "월별" | "주별">("팀별");
 
   // ── 점검 진행율 탭: 업로드 파일 데이터 ─────────────────────────────────────
   const [uploadedFileName, setUploadedFileName] = useState<string>("");
@@ -2266,81 +2267,94 @@ export default function SafetyInspections() {
                 </div>
               </div>
 
-              {/* 팀별 현황 — 목표 대비 진행율 */}
+              {/* 차트 탭 선택 */}
               <div className="border border-border rounded-xl overflow-hidden">
-                <div className="bg-slate-50 dark:bg-slate-900/40 px-3 py-2 border-b border-border flex items-center justify-between">
-                  <p className="text-xs font-semibold text-foreground">팀별 점검 현황</p>
-                  <span className="text-[10px] text-muted-foreground">진행 / 연간목표</span>
-                </div>
-                <div className="divide-y divide-border">
-                  {uploadedInspStats.sortedTeams.map(([team, cnt]) => {
-                    const annualTarget = (deptMonthlyTargets[team] || 0) * 12;
-                    const pct = annualTarget > 0 ? Math.min(100, Math.round(cnt / annualTarget * 100)) : null;
-                    const barWidth = annualTarget > 0
-                      ? Math.min(100, (cnt / annualTarget) * 100)
-                      : (cnt / uploadedInspStats.maxTeam) * 100;
-                    const barColor = pct === null ? "bg-indigo-400"
-                      : pct >= 100 ? "bg-emerald-500"
-                      : pct >= 70 ? "bg-indigo-500"
-                      : "bg-orange-400";
-                    return (
-                      <div key={team} className="flex items-center gap-2 px-3 py-1.5">
-                        <span className="text-xs font-medium text-foreground w-24 shrink-0 truncate">{team}</span>
-                        <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                          <div className={`h-full ${barColor} rounded-full transition-all`} style={{ width: `${barWidth}%` }} />
-                        </div>
-                        <span className="text-xs font-bold text-indigo-600 w-16 text-right shrink-0">
-                          {cnt}{annualTarget > 0 ? `/${annualTarget}` : ""}
-                        </span>
-                        <span className={`text-[10px] font-semibold w-10 text-right shrink-0 ${
-                          pct === null ? "text-muted-foreground"
-                          : pct >= 100 ? "text-emerald-600"
-                          : pct >= 70 ? "text-indigo-600"
-                          : "text-orange-500"
-                        }`}>
-                          {pct !== null ? `${pct}%` : "-"}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* 월별 현황 — 가로 막대 그래프 */}
-              <div className="border border-border rounded-xl overflow-hidden">
-                <div className="bg-slate-50 dark:bg-slate-900/40 px-3 py-2 border-b border-border">
-                  <p className="text-xs font-semibold text-foreground">월별 점검 현황</p>
-                </div>
-                <div className="divide-y divide-border">
-                  {uploadedInspStats.sortedMonths.map(([month, cnt]) => (
-                    <div key={month} className="flex items-center gap-2 px-3 py-1.5">
-                      <span className="text-xs font-medium text-foreground w-16 shrink-0">{month.slice(5)}월</span>
-                      <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-blue-500 rounded-full transition-all"
-                          style={{ width: `${(cnt / uploadedInspStats.maxMonth) * 100}%` }}
-                        />
-                      </div>
-                      <span className="text-xs font-bold text-blue-600 w-8 text-right shrink-0">{cnt}</span>
-                      <span className="text-[10px] text-muted-foreground w-10 text-right shrink-0">
-                        {Math.round(cnt / uploadedInspStats.total * 100)}%
-                      </span>
-                    </div>
+                {/* 탭 버튼 */}
+                <div className="flex border-b border-border bg-slate-50 dark:bg-slate-900/40">
+                  {(["팀별", "월별", "주별"] as const).map(v => (
+                    <button
+                      key={v}
+                      onClick={() => setChartView(v)}
+                      className={`flex-1 py-2 text-xs font-semibold transition-colors ${
+                        chartView === v
+                          ? "bg-white dark:bg-slate-800 text-indigo-600 border-b-2 border-indigo-500"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {v} 현황
+                    </button>
                   ))}
                 </div>
-              </div>
 
-              {/* 주별 현황 — 월목표 설정 시 목표 대비 표시 */}
-              {uploadedInspStats.sortedWeeks.length > 0 && (
-                <div className="border border-border rounded-xl overflow-hidden">
-                  <div className="bg-slate-50 dark:bg-slate-900/40 px-3 py-2 border-b border-border flex items-center justify-between">
-                    <p className="text-xs font-semibold text-foreground">주별 점검 현황</p>
-                    {uploadedInspStats.weeklyTargetTotal > 0 && (
-                      <span className="text-[10px] text-muted-foreground">주간 목표 {uploadedInspStats.weeklyTargetTotal}건</span>
-                    )}
-                  </div>
+                {/* 팀별 */}
+                {chartView === "팀별" && (
                   <div className="divide-y divide-border">
-                    {uploadedInspStats.sortedWeeks.map(([wk, cnt]) => {
+                    <div className="px-3 py-1.5 bg-slate-50/50 dark:bg-slate-900/20 flex justify-end">
+                      <span className="text-[10px] text-muted-foreground">진행 / 연간목표</span>
+                    </div>
+                    {uploadedInspStats.sortedTeams.map(([team, cnt]) => {
+                      const annualTarget = (deptMonthlyTargets[team] || 0) * 12;
+                      const pct = annualTarget > 0 ? Math.min(100, Math.round(cnt / annualTarget * 100)) : null;
+                      const barWidth = annualTarget > 0
+                        ? Math.min(100, (cnt / annualTarget) * 100)
+                        : (cnt / uploadedInspStats.maxTeam) * 100;
+                      const barColor = pct === null ? "bg-indigo-400"
+                        : pct >= 100 ? "bg-emerald-500"
+                        : pct >= 70 ? "bg-indigo-500"
+                        : "bg-orange-400";
+                      return (
+                        <div key={team} className="flex items-center gap-2 px-3 py-1.5">
+                          <span className="text-xs font-medium text-foreground w-24 shrink-0 truncate">{team}</span>
+                          <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                            <div className={`h-full ${barColor} rounded-full transition-all`} style={{ width: `${barWidth}%` }} />
+                          </div>
+                          <span className="text-xs font-bold text-indigo-600 w-16 text-right shrink-0">
+                            {cnt}{annualTarget > 0 ? `/${annualTarget}` : ""}
+                          </span>
+                          <span className={`text-[10px] font-semibold w-10 text-right shrink-0 ${
+                            pct === null ? "text-muted-foreground"
+                            : pct >= 100 ? "text-emerald-600"
+                            : pct >= 70 ? "text-indigo-600"
+                            : "text-orange-500"
+                          }`}>
+                            {pct !== null ? `${pct}%` : "-"}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* 월별 */}
+                {chartView === "월별" && (
+                  <div className="divide-y divide-border">
+                    {uploadedInspStats.sortedMonths.map(([month, cnt]) => (
+                      <div key={month} className="flex items-center gap-2 px-3 py-1.5">
+                        <span className="text-xs font-medium text-foreground w-16 shrink-0">{month.slice(5)}월</span>
+                        <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                          <div className="h-full bg-blue-500 rounded-full transition-all"
+                            style={{ width: `${(cnt / uploadedInspStats.maxMonth) * 100}%` }} />
+                        </div>
+                        <span className="text-xs font-bold text-blue-600 w-8 text-right shrink-0">{cnt}</span>
+                        <span className="text-[10px] text-muted-foreground w-10 text-right shrink-0">
+                          {Math.round(cnt / uploadedInspStats.total * 100)}%
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* 주별 */}
+                {chartView === "주별" && (
+                  <div className="divide-y divide-border">
+                    {uploadedInspStats.weeklyTargetTotal > 0 && (
+                      <div className="px-3 py-1.5 bg-slate-50/50 dark:bg-slate-900/20 flex justify-end">
+                        <span className="text-[10px] text-muted-foreground">주간 목표 {uploadedInspStats.weeklyTargetTotal}건</span>
+                      </div>
+                    )}
+                    {uploadedInspStats.sortedWeeks.length === 0 ? (
+                      <p className="text-xs text-muted-foreground text-center py-6">주별 데이터 없음</p>
+                    ) : uploadedInspStats.sortedWeeks.map(([wk, cnt]) => {
                       const wt = uploadedInspStats.weeklyTargetTotal;
                       const pct = wt > 0 ? Math.round(cnt / wt * 100) : null;
                       const barWidth = wt > 0
@@ -2350,7 +2364,6 @@ export default function SafetyInspections() {
                         : pct >= 100 ? "bg-emerald-500"
                         : pct >= 70 ? "bg-violet-500"
                         : "bg-orange-400";
-                      // "YYYY-Wnn" → "nn주차"
                       const weekLabel = wk.split("-W")[1] ? `${parseInt(wk.split("-W")[1])}주차` : wk;
                       return (
                         <div key={wk} className="flex items-center gap-2 px-3 py-1.5">
@@ -2373,8 +2386,8 @@ export default function SafetyInspections() {
                       );
                     })}
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           )}
         </div>
